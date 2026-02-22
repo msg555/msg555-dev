@@ -1,0 +1,6 @@
+*.png
+*.out
+*.csv
+__pycache__
+.venv
+*.swp

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTGA Rank Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        select, input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        select:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .results.show {
+            display: block;
+        }
+
+        .results h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .result-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .result-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .result-label {
+            font-weight: 600;
+            color: #444;
+            margin-bottom: 4px;
+        }
+
+        .result-value {
+            font-size: 18px;
+            color: #667eea;
+        }
+
+        .hybrid-recommendation {
+            margin-top: 8px;
+            padding: 8px;
+            background: #e8eaf6;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MTGA Rank Calculator</h1>
+        <p class="subtitle">Calculate expected games to reach next rank</p>
+
+        <form id="rankForm">
+            <div class="form-group">
+                <label for="ladder">Ladder Type</label>
+                <select id="ladder" required>
+                    <option value="constructed">Constructed</option>
+                    <option value="limited">Limited</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="winrate">Win Rate (%)</label>
+                <input type="number" id="winrate" min="40" max="100" step="0.1" value="55" required>
+            </div>
+
+            <div class="form-group">
+                <label for="rank">Current Rank</label>
+                <select id="rank" required>
+                    <option value="bronze">Bronze</option>
+                    <option value="silver">Silver</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="diamond">Diamond</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="tier">Current Tier (1-4)</label>
+                <input type="number" id="tier" min="1" max="4" value="4" required>
+            </div>
+
+            <div class="form-group">
+                <label for="step">Steps within Tier</label>
+                <input type="number" id="step" min="0" max="5" value="0" required>
+            </div>
+
+            <div class="form-group">
+                <label for="protection">Rank Protection Status (0-2)</label>
+                <input type="number" id="protection" min="0" max="2" value="0" required>
+            </div>
+
+            <button type="submit">Calculate</button>
+        </form>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Calculating optimal path to next rank...</div>
+        </div>
+
+        <div id="results" class="results">
+            <h2>Expected Games to Next Rank</h2>
+            <div class="result-item">
+                <div class="result-label">Best-of-1</div>
+                <div class="result-value" id="bo1Result">-</div>
+            </div>
+            <div class="result-item">
+                <div class="result-label">Best-of-3</div>
+                <div class="result-value" id="bo3Result">-</div>
+            </div>
+            <div class="result-item">
+                <div class="result-label">Hybrid Approach</div>
+                <div class="result-value" id="hybridResult">-</div>
+                <div class="hybrid-recommendation" id="hybridRecommendation"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Create worker from inline code
+        const workerCode = `
+            class GameMode {
+                constructor(bestOf, winProb, lossSteps, winSteps, protectionUsed) {
+                    this.bestOf = bestOf;
+                    this.winProb = winProb;
+                    this.lossSteps = lossSteps;
+                    this.winSteps = winSteps;
+                    this.protectionUsed = protectionUsed;
+                }
+            }
+
+            function solveMatch(wins, losses, mode, lossCost, winCost) {
+                if (wins * 2 > mode.bestOf) {
+                    return winCost;
+                }
+                if (losses * 2 > mode.bestOf) {
+                    return lossCost;
+                }
+                let result = 1 +
+                    mode.winProb * solveMatch(wins + 1, losses, mode, lossCost, winCost) +
+                    (1.0 - mode.winProb) * solveMatch(wins, losses + 1, mode, lossCost, winCost);
+                
+                if (wins || losses) {
+                    result = Math.min(result, lossCost);
+                }
+                return result;
+            }
+
+            function solve(gameModes, stepsPerTier = 6, numTiers = 4, maxProtection = 3) {
+                const states = [];
+                
+                for (let tier = 0; tier < numTiers; tier++) {
+                    for (let step = 0; step < stepsPerTier; step++) {
+                        states.push([step, tier, 0]);
+                        if (step <= 2 && tier > 0) {
+                            for (let protection = 0; protection < maxProtection; protection++) {
+                                states.push([step, tier, 1 + protection]);
+                            }
+                        }
+                    }
+                }
+
+                const endState = [0, numTiers, maxProtection];
+                states.push(endState);
+                
+                const stateIndex = {};
+                states.forEach((state, index) => {
+                    stateIndex[state.join(',')] = index;
+                });
+
+                let last = 0;
+                let eGames = states.map(() => [0, 0]);
+                
+                while (true) {
+                    const neGames = [];
+                    
+                    for (const [step, tier, protection] of states) {
+                        if (tier === numTiers) {
+                            neGames.push([0, 0]);
+                            continue;
+                        }
+
+                        const costs = [];
+                        
+                        for (let modeIndex = 0; modeIndex < gameModes.length; modeIndex++) {
+                            const mode = gameModes[modeIndex];
+                            let lossState, winState;
+
+                            if (step >= mode.lossSteps) {
+                                lossState = [step - mode.lossSteps, tier, Math.max(0, protection - mode.protectionUsed)];
+                            } else if (protection >= mode.protectionUsed) {
+                                lossState = [0, tier, protection - mode.protectionUsed];
+                            } else if (tier) {
+                                lossState = [step + stepsPerTier - mode.lossSteps, tier - 1, 0];
+                            } else {
+                                lossState = [0, 0, 0];
+                            }
+
+                            if (step + mode.winSteps >= stepsPerTier) {
+                                if (tier + 1 === numTiers) {
+                                    winState = endState;
+                                } else {
+                                    winState = [step + mode.winSteps - stepsPerTier, tier + 1, maxProtection];
+                                }
+                            } else {
+                                winState = [
+                                    step + mode.winSteps,
+                                    tier,
+                                    step + mode.winSteps >= 2 ? 0 : Math.max(0, protection - mode.protectionUsed)
+                                ];
+                            }
+
+                            const cost = solveMatch(
+                                0,
+                                0,
+                                mode,
+                                eGames[stateIndex[lossState.join(',')]][0],
+                                eGames[stateIndex[winState.join(',')]][0]
+                            );
+                            
+                            costs.push([cost, modeIndex]);
+                        }
+
+                        neGames.push(costs.reduce((min, curr) => curr[0] < min[0] ? curr : min));
+                    }
+
+                    eGames = neGames;
+
+                    if (Math.abs(eGames[0][0] - last) < 1e-9) {
+                        break;
+                    }
+                    last = eGames[0][0];
+                }
+
+                const result = {};
+                states.forEach((state, index) => {
+                    result[state.join(',')] = eGames[index];
+                });
+
+                return result;
+            }
+
+            function game_mode_bo1(winrate, rank) {
+                if (rank == "bronze") {
+                    return new GameMode(1, winrate, 0, 2, 1);
+                } else if (rank == "silver" || rank == "gold") {
+                    return new GameMode(1, winrate, 1, 2, 1);
+                } else {
+                    return new GameMode(1, winrate, 1, 1, 1);
+                }
+            }
+
+            function game_mode_bo3(winrate, rank) {
+                if (rank == "bronze") {
+                    return new GameMode(1, winrate, 0, 2, 2);
+                } else {
+                    return new GameMode(1, winrate, 2, 2, 2);
+                }
+            }
+
+            self.onmessage = function(e) {
+                const { type, data } = e.data;
+                
+                if (type === 'calculate') {
+                    const { ladder, winrate, rank, tier, step, protection } = data;
+                    const stepsPerTier = ladder === 'constructed' ? 6 : 5;
+                    
+                    // Calculate BO1
+                    const gms_bo1 = [game_mode_bo1(winrate, rank)];
+                    const result_bo1 = solve(gms_bo1, stepsPerTier);
+                    const bo1Games = result_bo1[\`\${step},\${4 - tier},\${protection}\`][0];
+                    
+                    // Calculate BO3
+                    const gms_bo3 = [game_mode_bo3(winrate, rank)];
+                    const result_bo3 = solve(gms_bo3, stepsPerTier);
+                    const bo3Games = result_bo3[\`\${step},\${4 - tier},\${protection}\`][0];
+                    
+                    // Calculate Hybrid
+                    const gms_hybrid = [game_mode_bo1(winrate, rank), game_mode_bo3(winrate, rank)];
+                    const result_hybrid = solve(gms_hybrid, stepsPerTier);
+                    const move = result_hybrid[\`\${step},\${4 - tier},\${protection}\`];
+                    
+                    self.postMessage({
+                        type: 'result',
+                        data: {
+                            bo1Games: bo1Games,
+                            bo3Games: bo3Games,
+                            hybridGames: move[0],
+                            nextFormat: move[1] === 0 ? 'bo1' : 'bo3'
+                        }
+                    });
+                }
+            };
+        `;
+
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        let worker = new Worker(workerUrl);
+
+        // Update step max based on ladder type
+        document.getElementById('ladder').addEventListener('change', function() {
+            const stepInput = document.getElementById('step');
+            if (this.value === 'constructed') {
+                stepInput.max = 5;
+                if (parseInt(stepInput.value) > 5) {
+                    stepInput.value = 5;
+                }
+            } else {
+                stepInput.max = 4;
+                if (parseInt(stepInput.value) > 4) {
+                    stepInput.value = 4;
+                }
+            }
+            updateProtectionStatus();
+        });
+
+        // Update protection status based on step and tier
+        function updateProtectionStatus() {
+            const stepInput = document.getElementById('step');
+            const tierInput = document.getElementById('tier');
+            const protectionInput = document.getElementById('protection');
+            
+            const step = parseInt(stepInput.value);
+            const tier = parseInt(tierInput.value);
+            
+            // Protection can only be non-zero if step <= 2 and tier != 4
+            if (step <= 2 && tier !== 4) {
+                protectionInput.disabled = false;
+            } else {
+                protectionInput.disabled = true;
+                protectionInput.value = 0;
+            }
+        }
+
+        // Add listeners to step and tier inputs
+        document.getElementById('step').addEventListener('change', updateProtectionStatus);
+        document.getElementById('step').addEventListener('input', updateProtectionStatus);
+        document.getElementById('tier').addEventListener('change', updateProtectionStatus);
+        document.getElementById('tier').addEventListener('input', updateProtectionStatus);
+
+        // Initialize protection status on page load
+        updateProtectionStatus();
+
+        // Calculation function using worker
+        function calculate_with_worker(ladder, winrate, rank, tier, step, protection) {
+            return new Promise((resolve) => {
+                worker.onmessage = function(e) {
+                    if (e.data.type === 'result') {
+                        resolve(e.data.data);
+                    }
+                };
+                
+                worker.postMessage({
+                    type: 'calculate',
+                    data: { ladder, winrate, rank, tier, step, protection }
+                });
+            });
+        }
+
+        // Handle form submission
+        document.getElementById('rankForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitButton = this.querySelector('button[type="submit"]');
+            const loadingEl = document.getElementById('loading');
+            const resultsEl = document.getElementById('results');
+
+            // Disable form and show loading
+            submitButton.disabled = true;
+            loadingEl.classList.add('show');
+            resultsEl.classList.remove('show');
+
+            const ladder = document.getElementById('ladder').value;
+            const winrate = parseFloat(document.getElementById('winrate').value) / 100;
+            const rank = document.getElementById('rank').value;
+            const tier = parseInt(document.getElementById('tier').value);
+            const step = parseInt(document.getElementById('step').value);
+            const protection = parseInt(document.getElementById('protection').value);
+
+            try {
+                // Calculate results using worker
+                const results = await calculate_with_worker(ladder, winrate, rank, tier, step, protection);
+
+                // Display results
+                document.getElementById('bo1Result').textContent = results.bo1Games.toFixed(1) + ' games';
+                document.getElementById('bo3Result').textContent = results.bo3Games.toFixed(1) + ' games';
+                document.getElementById('hybridResult').textContent = results.hybridGames.toFixed(1) + ' games';
+                
+                const nextFormat = results.nextFormat === 'bo1' ? 'Best-of-1' : 'Best-of-3';
+                document.getElementById('hybridRecommendation').textContent = 
+                    `Next game: Play ${nextFormat}`;
+
+                loadingEl.classList.remove('show');
+                resultsEl.classList.add('show');
+            } catch (error) {
+                console.error('Calculation error:', error);
+                alert('An error occurred during calculation. Please try again.');
+                loadingEl.classList.remove('show');
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
