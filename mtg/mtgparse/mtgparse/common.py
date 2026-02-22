@@ -11,10 +11,11 @@ def cached_request(
     verb: str,
     url: str,
     *args,
+    force: bool = False,
     **kwargs,
 ) -> str:
     cache_path = f"cache/{cache_key}"
-    if os.path.exists(cache_path) and not os.getenv("DISABLE_CACHE"):
+    if not force and os.path.exists(cache_path) and not os.getenv("DISABLE_CACHE"):
         with open(cache_path, "r") as fdata:
             return fdata.read()
 

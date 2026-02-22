@@ -1,0 +1,467 @@
+"""
+Compute player ranks
+
+See https://mtg.fandom.com/wiki/Tiebreaker for documentation on how to compute tiebreakers
+"""
+
+import argparse
+import copy
+import requests
+import random
+import logging
+import itertools
+import functools
+import os
+from bs4 import BeautifulSoup
+import re
+from Levenshtein import ratio as edit_ratio
+from fractions import Fraction
+from typing import Iterable
+
+from mtgparse.data_model import Card, MatchResult
+from mtgparse.news_parse import NewsTournament
+from mtgparse.melee_tournament_parse import MeleeTournament
+from mtgparse.json_tournament import JsonTournament
+import tqdm
+
+from scipy.stats import beta
+
+
+def calc_ord(top_cut: int) -> list[int]:
+    order = [0]
+    for _ in range(top_cut):
+        n_order = []
+        for i in order:
+            n_order.append(i)
+            n_order.append(2 * len(order) - i - 1)
+        order = n_order
+    return order
+
+
+def get_top_cut(ordered_players: Iterable[str], top_cut_rounds: int) -> list[str]:
+    if len(ordered_players) < 2 ** top_cut_rounds:
+        raise ValueError("Too few players for configured top cut")
+    return [
+        ordered_players[ind]
+        for ind in calc_ord(top_cut_rounds)
+    ]
+
+
+def zip_add(tup1, tup2):
+    return tuple(a + b for a, b in zip(tup1, tup2))
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(__doc__)
+    parser.add_argument(
+        "-i", "--input",
+        default="tournament.json",
+        help="tournament json file",
+    )
+    parser.add_argument(
+        "--rounds",
+        type=int,
+        default=0,
+        help="show results after a certain number of rounds. defaults to processing all rounds",
+    )
+    parser.add_argument(
+        "--top-cut",
+        type=int,
+        default=3,
+        help="number of rounds in top-cut",
+    )
+    parser.add_argument(
+        "--sim-rounds",
+        type=int,
+        default=0,
+        help="Number of rounds in simulation",
+    )
+    return parser.parse_args()
+
+
+class PlayerData:
+    MIN_PERCENTAGE = Fraction(1, 3)
+
+    def __init__(self) -> None:
+        self.points = 0
+        self.rounds = 0
+        self.match_record = (0, 0, 0)
+        self.game_record = (0, 0, 0)
+
+    def record_match(
+        self,
+        games: tuple[int, int, int],
+        *,
+        reverse: bool = False,
+        weight: int = 1,
+    ) -> None:
+        self.rounds += 1
+        if reverse:
+            games = (games[1], games[0], games[2])
+        self.game_record = zip_add(self.game_record, games)
+        if games[0] > games[1]:
+            match = (1, 0, 0)
+            self.points += 3 * weight
+        elif games[1] > games[0]:
+            match = (0, 1, 0)
+        else:
+            match = (0, 0, 1)
+            self.points += 1 * weight
+        self.match_record = zip_add(self.match_record, match)
+
+    @property
+    def match_win_percentage(self) -> Fraction:
+        if not self.rounds:
+            return Fraction(1, 2)
+        return max(
+            self.MIN_PERCENTAGE,
+            Fraction(self.points, 3 * self.rounds),
+        )
+
+    @property
+    def game_win_percentage(self) -> Fraction:
+        game_count = sum(self.game_record)
+        if not game_count:
+            return Fraction(1, 2)
+        return max(
+            self.MIN_PERCENTAGE,
+            Fraction(self.game_record[0] * 3 + self.game_record[2], 3 * game_count),
+        )
+
+
+class PlayerStats:
+    MAX_POWER = 9
+
+    def __init__(self, ):
+        self.wins = 0
+        self.top_p2 = [0 for _ in range(self.MAX_POWER)]
+        self.day_2 = 0
+
+    def record_rank(self, rank: int, points: int) -> None:
+        for ind in range(self.MAX_POWER):
+            if rank < 2 ** ind:
+                self.top_p2[ind] += 1
+        if points >= 18:
+            self.day_2 += 1
+
+    def display(self) -> str:
+        return str(self.top_p2)
+
+    def sort_key(self):
+        return ([-x for x in self.top_p2], -self.day_2)
+
+
+def sample_matchups(matchups: dict[str, dict[str, tuple[int, int, int]]]) -> dict[str, dict[str, float]]:
+    all_archs = list(matchups)
+    result = {arch: {} for arch in all_archs}
+    for ind, arch_1 in enumerate(all_archs):
+        result[arch_1][arch_1] = 0.5
+        for arch_2 in all_archs[ind + 1:]:
+            games = matchups[arch_1].get(arch_2, (0, 0, 0))
+            prob = beta.rvs(8 + games[0], 8 + games[1])
+            result[arch_1][arch_2] = prob
+            result[arch_2][arch_1] = 1.0 - prob
+    return result
+
+
+# This can be anything as long as it's larger than the max
+# points anyone can get pre top cut. Convenient if it's a power
+# of 10 so we can see top cut points and initial points.
+TOP_CUT_WEIGHT = 10000
+
+# TODO: Make configurable somehow
+REQUIRED_POINTS = {
+    9: 18
+}
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    args = parse_args()
+
+    tour = JsonTournament.from_file(args.input)
+    players = tour.get_players()
+    all_round_results = tour.get_round_results()
+
+    player_data = {
+        player_id: PlayerData()
+        for player_id in players
+    }
+    player_matchups = {
+        player_id: []
+        for player_id in players
+    }
+
+    # At the time of the top cut these are frozen as the (ordered) list of
+    # players in the top cut.
+    top_cut_players = []
+
+    def round_weight(round_idx: int) -> int:
+        if round_idx < len(all_round_results) - args.top_cut:
+            return 1
+        return TOP_CUT_WEIGHT
+
+    def tiebreakers(player_id):
+        pd = player_data[player_id]
+        opp_match_win_perc = Fraction(0)
+        opp_game_win_perc = Fraction(0)
+        total_opponents = 0
+        for opponent in player_matchups[player_id]:
+            total_opponents += 1
+            opp_match_win_perc += player_data[opponent].match_win_percentage
+            opp_game_win_perc += player_data[opponent].game_win_percentage
+
+        if total_opponents == 0:
+            # Replicate melee.gg's sorting. This doesn't really matter after round 1.
+            opp_match_win_perc = Fraction(3333, 10000)
+            opp_game_win_perc = Fraction(3333, 10000)
+            total_opponents = 1
+            
+        return (
+            -pd.points,
+            -opp_match_win_perc / total_opponents,
+            -pd.game_win_percentage,
+            -opp_game_win_perc / total_opponents,
+            player_id,
+        )
+
+    arch_matchup = {}
+    round_total = len(all_round_results)
+    for round_idx, round_results in enumerate(all_round_results):
+        if args.rounds and args.rounds <= round_idx:
+            break
+        if not round_results:
+            # Empty results means the round hasn't been recorded yet.
+            break
+
+        # If we're heading into top cut need to calculate who made it.
+        if round_idx == round_total - args.top_cut:
+            # Setup single elimination structure
+            rem_players = [
+                player_id for player_id, pdata in player_data.items()
+                if pdata.rounds == round_idx
+            ]
+            rem_players.sort(key=tiebreakers)
+            top_cut_players.clear()
+            top_cut_players.extend(get_top_cut(rem_players, args.top_cut))
+
+        weight = round_weight(round_idx)
+        seen_in_round = set()
+        for round_result in round_results:
+            p1 = round_result.p1
+            p2 = round_result.p2
+            games = round_result.games
+
+            for player_id in (p1, p2):
+                if player_id is None:
+                    continue
+                if player_id in seen_in_round:
+                    raise ValueError(f"Saw {player_id} already in round index {round_idx}")
+                if player_data[player_id].rounds != round_idx:
+                    raise ValueError(f"Player {player_id} has unexpected number of rounds in round index {round_idx}")
+                seen_in_round.add(player_id)
+
+            if p2 is None: # Bye
+                player_data[p1].record_match((2, 0, 0), weight=weight)
+                continue
+
+            player_matchups[p1].append(p2)
+            player_matchups[p2].append(p1)
+            player_data[p1].record_match(games, weight=weight)
+            player_data[p2].record_match(games, reverse=True, weight=weight)
+
+            # Record matchup result
+            arch_1 = players[p1].deck.archetype
+            arch_2 = players[p2].deck.archetype
+            arch_matchup.setdefault(arch_1, {})[arch_2] = zip_add(
+                arch_matchup.get(arch_1, {}).get(arch_2, (0, 0, 0)),
+                games,
+            )
+            arch_matchup.setdefault(arch_2, {})[arch_1] = zip_add(
+                arch_matchup.get(arch_2, {}).get(arch_1, (0, 0, 0)),
+                (games[1], games[0], games[2]),
+            )
+
+
+    arch_matchup_probs = {}
+
+    def simulate_round(round_idx):
+        # only include players who haven't missed a round (assumed to have dropped)
+        rem_players = [
+            player_id for player_id, pdata in player_data.items()
+            if pdata.rounds == round_idx and pdata.points >= REQUIRED_POINTS.get(round_idx, 0)
+        ]
+
+        pairings = []
+        if round_idx < round_total - args.top_cut:
+            if round_idx < round_total - args.top_cut - 1:
+                # Pair randomly among players with the same number of points.
+                # We reuse the power pairing logic but just order players by their
+                # points and break ties using a random key.
+                player_sort_key = {player_id: random.random() for player_id in rem_players}
+                rem_players.sort(
+                    key=lambda player_id: (player_data[player_id].points, player_sort_key[player_id])
+                )
+            else:
+                # Do power pairing on sorted rankings
+                rem_players.sort(key=tiebreakers)
+
+            # Do power pairing!
+            paired = set()
+            for rank, p1 in enumerate(rem_players):
+                if p1 in paired:
+                    continue
+
+                # Pair with next rank that we haven't played before
+                past_matchups = player_matchups[p1]
+                for pair_rank in range(rank + 1, len(rem_players)):
+                    p2 = rem_players[pair_rank]
+                    if p2 not in past_matchups:
+                        pairings.append((p1, p2))
+                        paired.add(p2)
+                        break
+                else:
+                    # Give bye if no way to pair
+                    pairings.append((p1, None))
+        else:
+            if round_idx == round_total - args.top_cut:
+                # Setup single elimination structure
+                rem_players.sort(key=tiebreakers)
+                top_cut_players.clear()
+                top_cut_players.extend(get_top_cut(rem_players, args.top_cut))
+                rem_players = top_cut_players
+            else:
+                rem_players = [
+                    player_id
+                    for player_id in top_cut_players
+                    if player_data[player_id].points // TOP_CUT_WEIGHT // 3 == round_idx - round_total + args.top_cut
+                ]
+
+            assert len(rem_players) == 2 ** (round_total - round_idx)
+            for index in range(0, len(rem_players), 2):
+                pairings.append((rem_players[index], rem_players[index + 1]))
+
+        weight = round_weight(round_idx)
+
+        # Mark matchups first
+        for p1, p2 in pairings:
+            if p2 is not None:
+                player_matchups[p1].append(p2)
+                player_matchups[p2].append(p1)
+
+        # To help calculate IDs we'll assume that breakers do not change as a
+        # result of this round. Generally relative order of breakers will not change
+        # as a result of this round (but can in some uncommon cases) so this
+        # should be a relatively accurate assumption.
+
+        intentional_draws = set()
+        if round_idx == round_total - args.top_cut - 1:
+            cut_off_rank = 2 ** args.top_cut
+
+            orig_breakers = {
+                player_id: tiebreakers(player_id)
+                for player_id in rem_players
+            }
+            for p1, p2 in pairings:
+                if p2 is None:
+                    continue
+
+                # We will ID if even the lower player has a guaranteed spot in top
+                # cut.
+                p2_breakers = list(orig_breakers[p2])
+                p2_breakers[0] -= 1 # Give one point for draw
+
+                worst_rank = 1 # Start at 1 since behind p1
+                for oth_p1, oth_p2 in pairings:
+                    if oth_p1 == p1 or oth_p2 is None:
+                        continue
+
+                    worst_case_rank = 0
+                    for outcome in ((1, 1), (3, 0), (0, 3)):
+                        if (oth_p1, oth_p2) in intentional_draws:
+                            if outcome != (1, 1):
+                                continue
+                        oth_p1_break = list(orig_breakers[oth_p1])
+                        oth_p2_break = list(orig_breakers[oth_p2])
+                        oth_p1_break[0] -= outcome[0]
+                        oth_p2_break[0] -= outcome[1]
+                        outcome_rank = 0
+                        if p2_breakers > oth_p1_break:
+                            outcome_rank += 1
+                        if p2_breakers > oth_p2_break:
+                            outcome_rank += 1
+                        worst_case_rank = max(worst_case_rank, outcome_rank)
+
+                    worst_rank += worst_case_rank
+                    if worst_rank >= cut_off_rank or worst_case_rank == 0:
+                        break
+
+                if worst_rank < cut_off_rank:
+                    intentional_draws.add((p1, p2))
+
+        for p1, p2 in pairings:
+            if p2 is None:
+                player_data[p1].record_match((2, 0, 0), weight=weight)
+                continue
+            if (p1, p2) in intentional_draws:
+                player_data[p1].record_match((0, 0, 0), weight=weight)
+                player_data[p2].record_match((0, 0, 0), weight=weight)
+                continue
+
+            matchup_prob = arch_matchup_probs.get(
+                players[p1].deck.archetype, {}
+            ).get(players[p2].deck.archetype, 0.5)
+            games = [0, 0]
+            while all(g < 2 for g in games):
+                winner = 0 if random.random() < matchup_prob else 1
+                games[winner] += 1
+
+            player_data[p1].record_match((games[0], games[1], 0), weight=weight)
+            player_data[p2].record_match((games[1], games[0], 0), weight=weight)
+    
+
+    if args.sim_rounds:
+        player_stats = {
+            player_id: PlayerStats()
+            for player_id in players
+        }
+
+        init_player_data = copy.deepcopy(player_data)
+        init_player_matchups = copy.deepcopy(player_matchups)
+        init_top_cut_players = copy.deepcopy(top_cut_players)
+
+        for sim_round in tqdm.trange(args.sim_rounds):
+            player_data = copy.deepcopy(init_player_data)
+            player_matchups = copy.deepcopy(init_player_matchups)
+            top_cut_players = copy.deepcopy(init_top_cut_players)
+            arch_matchup_probs = sample_matchups(arch_matchup)
+
+            for round_idx, round_results in enumerate(all_round_results):
+                if not round_results:
+                    simulate_round(round_idx)
+
+            top_players = sorted(players, key=tiebreakers)
+            for rank, player_id in enumerate(top_players):
+                player_stats[player_id].record_rank(rank, player_data[player_id].points)
+
+        player_data = copy.deepcopy(init_player_data)
+        player_matchups = copy.deepcopy(init_player_matchups)
+        top_cut_players = copy.deepcopy(init_top_cut_players)
+        top_players = sorted(players, key=tiebreakers)
+        print(f"Name|Deck|Current Rank|Current Points|Day 2 %|Win %|{'|'.join('Top ' + str(2 ** ind) + ' %' for ind in range(1, PlayerStats.MAX_POWER))}")
+        for rank, player_id in enumerate(top_players):
+            stats = player_stats[player_id]
+            print(f"{players[player_id].name}|{players[player_id].deck.archetype}|{rank + 1}|{player_data[player_id].points}|{stats.day_2 / args.sim_rounds * 100:.2f}|{'|'.join(f'{x / args.sim_rounds * 100:.2f}' for x in stats.top_p2)}")
+
+    else:
+        print("Name|Deck|Rank|Points|OMW%|GW%|OGW%")
+        rem_players = sorted(player_data, key=tiebreakers)
+        for rank, player_id in enumerate(rem_players):
+            pinfo = players[player_id]
+            pdata = player_data[player_id]
+            _, opp_match_win_perc, _, opp_game_win_perc, _ = tiebreakers(player_id)
+            print(f"{pinfo.name}|{pinfo.deck.archetype}|{rank + 1}|{pdata.points}|{-opp_match_win_perc * 100:.2f}|{pdata.game_win_percentage * 100:.2f}|{-opp_game_win_perc * 100:.2f}")
+
+
+if __name__ == "__main__":
+    main()

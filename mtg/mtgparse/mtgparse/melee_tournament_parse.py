@@ -26,6 +26,7 @@ class MeleeTournament(Tournament):
             f"melee_tournament_{self.tournament_id}",
             "get",
             f"https://melee.gg/Tournament/View/{self.tournament_id}",
+            force=1,
         )
         soup = BeautifulSoup(page_html, "lxml")
 
@@ -68,8 +69,6 @@ class MeleeTournament(Tournament):
             url=f"https://melee.gg/Decklist/View/{deck_id}",
         )
 
-    # 	https://melee.gg/Standing/GetRoundStandings
-
     def get_players(self) -> dict[str, Player]:
         if self.players is not None:
             return self.players
@@ -105,7 +104,7 @@ class MeleeTournament(Tournament):
 
         return self.players
 
-    def page_round_results(self, round_id: int):
+    def page_round_results(self, round_id: int, *, force: bool = False):
         start = 0
         page_size = 100
 
@@ -125,6 +124,7 @@ class MeleeTournament(Tournament):
                     "search[value]": "",
                     "search[regex]": "false",
                 },
+                force=force,
             )
             result = json.loads(raw_result)
             for item in result["data"]:
@@ -166,11 +166,14 @@ class MeleeTournament(Tournament):
 
             start += page_size
 
-    def get_single_round_result(self, round_id: int) -> Optional[list[MatchResult]]:
+    def get_single_round_result(self, round_id: int, *, force: bool = False) -> list[MatchResult]:
+        
+        missing_results = False
         match_results: list[MatchResult] = []
-        for match_result in self.page_round_results(round_id):
+        for match_result in self.page_round_results(round_id, force=force):
             if not match_result["HasResult"]:
-                return None
+                missing_results = True
+                continue
             if match_result.get("LossReasonDescription") == "All Players Absent":
                 continue
 
@@ -217,6 +220,12 @@ class MeleeTournament(Tournament):
                 )
             )
 
+        if missing_results or not match_results:
+            if not force:
+                return self.get_single_round_result(round_id, force=True)
+
+        if missing_results:
+            return []
         return match_results
 
     def get_round_results(self) -> list[list[MatchResult]]:

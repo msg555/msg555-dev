@@ -103,7 +103,7 @@ def main():
     def format_record(record) -> str:
         if record == (0, 0, 0):
             return "-"
-        win_rate = 100.0 * record[0] / sum(record)
+        win_rate = 100.0 * (record[0] + record[2] / 2.0) / sum(record)
         return f"{win_rate:.2f}% {record[0]}-{record[1]}-{record[2]}"
 
     if args.format == "csv":
@@ -128,7 +128,7 @@ def main():
                 if sum(res) == 0:
                     row.append(0.5)
                 else:
-                    row.append(res[0] / sum(res))
+                    row.append((res[0] + res[2] / 2.0) / sum(res))
             print(" ".join(f"{num:.6f}" for num in row))
 
 
