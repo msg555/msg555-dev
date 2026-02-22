@@ -19,6 +19,13 @@ class Deck:
     url: Optional[str] = None
 
 
+DECK_UNKNOWN = Deck(
+    main_deck=[],
+    side_board=[],
+    archetype="unknown",
+)
+
+
 @dataclasses.dataclass
 class Player:
     ident: str

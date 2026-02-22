@@ -1,3 +1,4 @@
+import logging
 import requests
 import time
 import json
@@ -5,8 +6,10 @@ import os
 
 from bs4 import BeautifulSoup
 from typing import Optional
-from mtgparse.data_model import Card, Deck, Player, Tournament, MatchResult
+from mtgparse.data_model import Card, Deck, Player, Tournament, MatchResult, DECK_UNKNOWN
 from mtgparse.common import cached_request
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MeleeTournament(Tournament):
@@ -82,24 +85,24 @@ class MeleeTournament(Tournament):
             for competitor in match_result["Competitors"]:
                 rc += 1
                 decks = competitor["Decklists"]
-                assert len(decks) == 1
-                player_decks[str(competitor["TeamId"])] = decks[0]
+                player_decks[str(competitor["TeamId"])] = decks[0] if decks else None
                 player_names[str(competitor["TeamId"])] = " and ".join(
                     player["DisplayName"]
                     for player in competitor["Team"]["Players"]
                 )
 
         for player_id, deck_data in player_decks.items():
-            deck_id = deck_data["DecklistId"]
-            deck = self.get_decklist(deck_id)
+            if deck_data:
+                deck_id = deck_data["DecklistId"]
+                deck = self.get_decklist(deck_id)
+            else:
+                deck = DECK_UNKNOWN
             self.players[player_id] = Player(
                 player_id,
                 player_names[player_id],
                 deck,
             )
 
-
-        print(rc, len(self.players))
         return self.players
 
     def page_round_results(self, round_id: int):
@@ -163,11 +166,11 @@ class MeleeTournament(Tournament):
 
             start += page_size
 
-    def get_single_round_result(self, round_id: int) -> list[MatchResult]:
+    def get_single_round_result(self, round_id: int) -> Optional[list[MatchResult]]:
         match_results: list[MatchResult] = []
         for match_result in self.page_round_results(round_id):
             if not match_result["HasResult"]:
-                raise ValueError("Match result not entered yet")
+                return None
             if match_result.get("LossReasonDescription") == "All Players Absent":
                 continue
 
@@ -217,12 +220,14 @@ class MeleeTournament(Tournament):
         return match_results
 
     def get_round_results(self) -> list[list[MatchResult]]:
+        results = []
         rounds = self.get_rounds()
-        return [
-            self.get_single_round_result(round_id)
-            for round_id, _ in rounds
-        ]
-    
+        for round_id, _ in self.get_rounds():
+            result = self.get_single_round_result(round_id)
+            if result is not None:
+                results.append(result)
+        return results
+
 
 if __name__ == "__main__":
     t = MeleeTournament(331949)

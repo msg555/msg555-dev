@@ -1,4 +1,5 @@
 import requests
+import logging
 import itertools
 import functools
 import os
@@ -26,13 +27,21 @@ def zip_add(tup1, tup2):
     return tuple(a + b for a, b in zip(tup1, tup2))
 
 
-def main():
-    tour = NewsTournament()
-    # tour = MeleeTournament(331949)
-    players = tour.get_players()
-    results = tour.get_round_results()
+def parse_args():
+    parser = argparse.ArgumentParser(__doc__)
+    parser.add_argument(
+        "-i", "--input",
+        default="tournament.json",
+        help="tournament json file",
+    )
+    return parser.parse_args()
 
-    JsonTournament.from_tournament(tour).save_file("tour.json")
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    args = parse_args()
+
+    tour = JsonTournament.from_file(args.input)
 
     matchup = {}
     total = {}

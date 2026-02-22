@@ -18,8 +18,8 @@ def _get_card_from_line(line: str) -> Card:
 
 
 class NewsTournament(Tournament):
-    def __init__(self) -> None:
-        self.event_name = "pro-tour-lorwyn-eclipsed"
+    def __init__(self, event_name: str) -> None:
+        self.event_name = event_name
         self.decklist_buckets = ["a-e", "f-l", "m-r", "s-z"]
         self.format_name = "standard"
         self.rounds = [4, 5, 6, 7, 8, 12, 13, 14, 15, 16]
