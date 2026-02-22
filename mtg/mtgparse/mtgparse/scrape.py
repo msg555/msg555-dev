@@ -1,13 +1,14 @@
 """
 Parse an MTG Tournament into JSON format.
 """
+
 import argparse
 import logging
 import sys
 
-from mtgparse.news_parse import NewsTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
 from mtgparse.json_tournament import JsonTournament
+from mtgparse.melee_tournament_parse import MeleeTournament
+from mtgparse.news_parse import NewsTournament
 
 
 def parse_args():
@@ -21,7 +22,8 @@ def parse_args():
         help="magic.gg event name",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default="tournament.json",
         help="tournament output file path",
     )

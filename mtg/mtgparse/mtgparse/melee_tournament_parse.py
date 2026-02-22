@@ -1,13 +1,21 @@
-import logging
-import requests
-import time
 import json
+import logging
 import os
-
-from bs4 import BeautifulSoup
+import time
 from typing import Optional
-from mtgparse.data_model import Card, Deck, Player, Tournament, MatchResult, DECK_UNKNOWN
+
+import requests
+from bs4 import BeautifulSoup
+
 from mtgparse.common import cached_request
+from mtgparse.data_model import (
+    DECK_UNKNOWN,
+    Card,
+    Deck,
+    MatchResult,
+    Player,
+    Tournament,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +49,6 @@ class MeleeTournament(Tournament):
             if round_id and round_name:
                 self.rounds.append((int(round_id), round_name))
         return self.rounds
-
 
     def get_decklist(self, deck_id) -> Deck:
         raw_deck = cached_request(
@@ -86,8 +93,7 @@ class MeleeTournament(Tournament):
                 decks = competitor["Decklists"]
                 player_decks[str(competitor["TeamId"])] = decks[0] if decks else None
                 player_names[str(competitor["TeamId"])] = " and ".join(
-                    player["DisplayName"]
-                    for player in competitor["Team"]["Players"]
+                    player["DisplayName"] for player in competitor["Team"]["Players"]
                 )
 
         for player_id, deck_data in player_decks.items():
@@ -166,8 +172,10 @@ class MeleeTournament(Tournament):
 
             start += page_size
 
-    def get_single_round_result(self, round_id: int, *, force: bool = False) -> list[MatchResult]:
-        
+    def get_single_round_result(
+        self, round_id: int, *, force: bool = False
+    ) -> list[MatchResult]:
+
         missing_results = False
         match_results: list[MatchResult] = []
         for match_result in self.page_round_results(round_id, force=force):

@@ -1,28 +1,27 @@
 import argparse
-import requests
-import logging
-import itertools
 import functools
+import itertools
+import logging
 import os
-from bs4 import BeautifulSoup
 import re
+
+import matplotlib
+import pandas as pd
+import plotly.express as px
+import requests
+from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
 
 from mtgparse.data_model import Card, MatchResult
-from mtgparse.news_parse import NewsTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
 from mtgparse.json_tournament import JsonTournament
+from mtgparse.melee_tournament_parse import MeleeTournament
+from mtgparse.news_parse import NewsTournament
 
-
-import plotly.express as px
-import pandas as pd
-
-
-import matplotlib
 matplotlib.use("QtAgg")
 import matplotlib.pyplot as plt
-from sklearn.manifold import MDS
 import numpy as np
+from sklearn.manifold import MDS
+
 
 def zip_add(tup1, tup2):
     return tuple(a + b for a, b in zip(tup1, tup2))
@@ -31,12 +30,14 @@ def zip_add(tup1, tup2):
 def parse_args():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument(
-        "-i", "--input",
+        "-i",
+        "--input",
         default="tournament.json",
         help="tournament json file",
     )
     parser.add_argument(
-        "-f", "--format",
+        "-f",
+        "--format",
         choices=("csv", "tabular"),
         default="csv",
         help="output format",
@@ -61,7 +62,7 @@ def main():
             p1 = round_result.p1
             p2 = round_result.p2
             games = round_result.games
-            if p2 is None: # Bye
+            if p2 is None:  # Bye
                 continue
 
             player_1 = players[p1]
@@ -116,7 +117,7 @@ def main():
                 row.append(format_record(matchup[arch].get(arch_2, (0, 0, 0))))
             table.append(row)
 
-        print("\n".join( ",".join(row) for row in table))
+        print("\n".join(",".join(row) for row in table))
     elif args.format == "tabular":
         print(len(deck_archs))
         for arch in deck_archs:

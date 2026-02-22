@@ -9,3 +9,6 @@ plotly
 pandas
 matplotlib
 tqdm
+
+black
+isort

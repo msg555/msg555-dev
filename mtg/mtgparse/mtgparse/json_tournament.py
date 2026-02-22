@@ -2,7 +2,8 @@ import abc
 import dataclasses
 
 from pydantic import BaseModel
-from mtgparse.data_model import Player, MatchResult, Tournament
+
+from mtgparse.data_model import MatchResult, Player, Tournament
 
 
 class TournamentModel(BaseModel):
@@ -22,10 +23,12 @@ class JsonTournament(abc.ABC):
 
     @classmethod
     def from_tournament(cls, tour: Tournament) -> None:
-        return cls(TournamentModel(
-            players=tour.get_players(),
-            round_results=tour.get_round_results(),
-        ))
+        return cls(
+            TournamentModel(
+                players=tour.get_players(),
+                round_results=tour.get_round_results(),
+            )
+        )
 
     def save_file(self, path: str) -> None:
         with open(path, "w", encoding="utf-8") as fdata:

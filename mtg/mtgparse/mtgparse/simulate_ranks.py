@@ -5,20 +5,21 @@ See https://mtg.fandom.com/wiki/Tiebreaker for documentation on how to compute t
 """
 
 import argparse
-import requests
-import logging
-import itertools
 import functools
+import itertools
+import logging
 import os
-from bs4 import BeautifulSoup
 import re
-from Levenshtein import ratio as edit_ratio
 from fractions import Fraction
 
+import requests
+from bs4 import BeautifulSoup
+from Levenshtein import ratio as edit_ratio
+
 from mtgparse.data_model import Card, MatchResult
-from mtgparse.news_parse import NewsTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
 from mtgparse.json_tournament import JsonTournament
+from mtgparse.melee_tournament_parse import MeleeTournament
+from mtgparse.news_parse import NewsTournament
 
 
 def zip_add(tup1, tup2):
@@ -28,7 +29,8 @@ def zip_add(tup1, tup2):
 def parse_args():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument(
-        "-i", "--input",
+        "-i",
+        "--input",
         default="tournament.json",
         help="tournament json file",
     )
@@ -45,7 +47,9 @@ class PlayerData:
         self.match_record = (0, 0, 0)
         self.game_record = (0, 0, 0)
 
-    def record_match(self, games: tuple[int, int, int], *, reverse: bool = False) -> None:
+    def record_match(
+        self, games: tuple[int, int, int], *, reverse: bool = False
+    ) -> None:
         self.rounds += 1
         if reverse:
             games = (games[1], games[0], games[2])
@@ -87,15 +91,9 @@ def main():
 
     tour = JsonTournament.from_file(args.input)
     players = tour.get_players()
-    player_data = {
-        player_id: PlayerData()
-        for player_id in players
-    }
-    player_matchups = {
-        player_id: []
-        for player_id in players
-    }
-        
+    player_data = {player_id: PlayerData() for player_id in players}
+    player_matchups = {player_id: [] for player_id in players}
+
     for round_idx, round_results in enumerate(tour.get_round_results()):
         if args.rounds and args.rounds <= round_idx:
             break
@@ -110,12 +108,16 @@ def main():
                 if player_id is None:
                     continue
                 if player_id in seen_in_round:
-                    raise ValueError(f"Saw {player_id} already in round index {round_idx}")
+                    raise ValueError(
+                        f"Saw {player_id} already in round index {round_idx}"
+                    )
                 if player_data[player_id].rounds != round_idx:
-                    raise ValueError(f"Player {player_id} has unexpected number of rounds in round index {round_idx}")
+                    raise ValueError(
+                        f"Player {player_id} has unexpected number of rounds in round index {round_idx}"
+                    )
                 seen_in_round.add(player_id)
 
-            if p2 is None: # Bye
+            if p2 is None:  # Bye
                 player_data[p1].record_match((2, 0, 0))
                 continue
 
@@ -139,7 +141,7 @@ def main():
             opp_match_win_perc = Fraction(3333, 10000)
             opp_game_win_perc = Fraction(3333, 10000)
             total_opponents = 1
-            
+
         return (
             -pd.points,
             -opp_match_win_perc / total_opponents,

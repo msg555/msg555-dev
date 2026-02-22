@@ -1,28 +1,27 @@
 import argparse
-import requests
-import logging
-import itertools
 import functools
+import itertools
+import logging
 import os
-from bs4 import BeautifulSoup
 import re
+
+import matplotlib
+import pandas as pd
+import plotly.express as px
+import requests
+from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
 
 from mtgparse.data_model import Card, MatchResult
-from mtgparse.news_parse import NewsTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
 from mtgparse.json_tournament import JsonTournament
+from mtgparse.melee_tournament_parse import MeleeTournament
+from mtgparse.news_parse import NewsTournament
 
-
-import plotly.express as px
-import pandas as pd
-
-
-import matplotlib
 matplotlib.use("QtAgg")
 import matplotlib.pyplot as plt
-from sklearn.manifold import MDS
 import numpy as np
+from sklearn.manifold import MDS
+
 
 def zip_add(tup1, tup2):
     return tuple(a + b for a, b in zip(tup1, tup2))
@@ -31,7 +30,8 @@ def zip_add(tup1, tup2):
 def parse_args():
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument(
-        "-i", "--input",
+        "-i",
+        "--input",
         default="tournament.json",
         help="tournament json file",
     )
@@ -51,10 +51,7 @@ def main():
         cards.update(card.name for card in deck.main_deck)
         cards.update(card.name for card in deck.side_board)
 
-    card_index = {
-        card: idx
-        for idx, card in enumerate(cards)
-    }
+    card_index = {card: idx for idx, card in enumerate(cards)}
     player_idents = list(players)
 
     vecs = np.zeros((len(players), len(cards)))
@@ -64,10 +61,10 @@ def main():
             vecs[player_idx][card_index[card.name]] += card.count
 
     print(vecs)
-    
+
     mds = MDS(n_components=2, metric=True, max_iter=100, eps=1e-4)
     vec_2d = mds.fit_transform(vecs)
-    
+
     arch_map = {}
     arch_list = []
     categories = []
@@ -79,13 +76,15 @@ def main():
         categories.append(arch_map[arch])
     categories = np.array(categories)
 
-    df = pd.DataFrame({
-        "x": vec_2d[:, 0],
-        "y": vec_2d[:, 1],
-        "name": [players[player].name for player in player_idents],
-        "category": [arch_list[c] for c in categories],
-        "url": [players[player].deck.url for player in player_idents],
-    })
+    df = pd.DataFrame(
+        {
+            "x": vec_2d[:, 0],
+            "y": vec_2d[:, 1],
+            "name": [players[player].name for player in player_idents],
+            "category": [arch_list[c] for c in categories],
+            "url": [players[player].deck.url for player in player_idents],
+        }
+    )
 
     fig = px.scatter(
         df,
@@ -93,17 +92,17 @@ def main():
         y="y",
         color="category",
         title="Deck Embedding",
-        custom_data=["name","category","url"],
-        hover_data=["name","category"],
+        custom_data=["name", "category", "url"],
+        hover_data=["name", "category"],
     )
-    #fig.update_traces(
+    # fig.update_traces(
     #    customdata=df[["name", "category", "url"]],
     #    hovertemplate='<br>'.join([
     #        "Name: %{customdata[0]}",
     #        "Category: %{customdata[1]}",
     #        "URL: %{customdata[2]}",
     #    ])
-    #)
+    # )
     fig.update_layout(clickmode="event")
 
     figure_html = fig.to_html(include_plotlyjs="cdn")

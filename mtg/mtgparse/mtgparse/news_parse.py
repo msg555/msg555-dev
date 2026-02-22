@@ -1,13 +1,13 @@
-import requests
-import itertools
 import functools
+import itertools
 import os
-from bs4 import BeautifulSoup
 import re
+
+import requests
+from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
 
-
-from mtgparse.data_model import Card, Deck, Player, Tournament, MatchResult
+from mtgparse.data_model import Card, Deck, MatchResult, Player, Tournament
 
 
 def _get_card_from_line(line: str) -> Card:
@@ -23,7 +23,7 @@ class NewsTournament(Tournament):
         self.decklist_buckets = ["a-e", "f-l", "m-r", "s-z"]
         self.format_name = "standard"
         self.rounds = [4, 5, 6, 7, 8, 12, 13, 14, 15, 16]
-        
+
         self.players: Optional[dict[str, Player]] = None
         self.normalize_cache = {}
 
@@ -34,7 +34,9 @@ class NewsTournament(Tournament):
         self.players = {}
         for bucket in self.decklist_buckets:
             url = f"https://magic.gg/decklists/{self.event_name}-{self.format_name}-decklists-{bucket}"
-            cache_path = f"cache/deck-{self.event_name}-{self.format_name}-{bucket}.html"
+            cache_path = (
+                f"cache/deck-{self.event_name}-{self.format_name}-{bucket}.html"
+            )
             if os.path.exists(cache_path):
                 with open(cache_path, "r") as fdata:
                     soup = BeautifulSoup(fdata.read(), "lxml")
@@ -91,8 +93,14 @@ class NewsTournament(Tournament):
             norm_name_a = parts[1].strip() + " " + parts[0].strip()
 
         best = max(
-            max((edit_ratio(norm_name_a, player_name), player_name) for player_name in players),
-            max((edit_ratio(norm_name_b, player_name), player_name) for player_name in players),
+            max(
+                (edit_ratio(norm_name_a, player_name), player_name)
+                for player_name in players
+            ),
+            max(
+                (edit_ratio(norm_name_b, player_name), player_name)
+                for player_name in players
+            ),
         )
         return best[1]
 
@@ -102,7 +110,9 @@ class NewsTournament(Tournament):
             with open(cache_path, "r") as fdata:
                 soup = BeautifulSoup(fdata.read(), "lxml")
         else:
-            resp = requests.get(f"https://magic.gg/news/{self.event_name}-round-{round_num}-results")
+            resp = requests.get(
+                f"https://magic.gg/news/{self.event_name}-round-{round_num}-results"
+            )
             resp.raise_for_status()
             with open(cache_path, "wb") as fdata:
                 fdata.write(resp.content)
@@ -145,7 +155,9 @@ class NewsTournament(Tournament):
 
                     match_record = (int(m.group(2)), int(m.group(3)), int(m.group(4)))
                     assert match_record[0] > match_record[1]
-                    if edit_ratio(m.group(1), player_1) < edit_ratio(m.group(1), player_2):
+                    if edit_ratio(m.group(1), player_1) < edit_ratio(
+                        m.group(1), player_2
+                    ):
                         player_1, player_2 = player_2, player_1
 
                 results.append(
@@ -159,7 +171,4 @@ class NewsTournament(Tournament):
         return results
 
     def get_round_results(self) -> list[list[MatchResult]]:
-        return [
-            self.get_single_round_result(round_num)
-            for round_num in self.rounds
-        ]
+        return [self.get_single_round_result(round_num) for round_num in self.rounds]

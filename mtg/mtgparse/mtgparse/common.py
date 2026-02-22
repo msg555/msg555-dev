@@ -1,7 +1,8 @@
-import os
-import requests
-import time
 import logging
+import os
+import time
+
+import requests
 
 LOGGER = logging.getLogger(__name__)
 

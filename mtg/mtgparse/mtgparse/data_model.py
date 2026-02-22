@@ -1,6 +1,5 @@
 import abc
 import dataclasses
-
 from typing import Optional
 
 
@@ -40,10 +39,10 @@ class MatchResult:
 
     In the case of a bye p2 should be None and games should be (0, 0, 0)
     """
+
     p1: str
     p2: Optional[str]
     games: tuple[int, int, int]
-    
 
 
 class Tournament(abc.ABC):
