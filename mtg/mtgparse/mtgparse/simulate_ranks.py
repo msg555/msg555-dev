@@ -5,21 +5,10 @@ See https://mtg.fandom.com/wiki/Tiebreaker for documentation on how to compute t
 """
 
 import argparse
-import functools
-import itertools
 import logging
-import os
-import re
 from fractions import Fraction
 
-import requests
-from bs4 import BeautifulSoup
-from Levenshtein import ratio as edit_ratio
-
-from mtgparse.data_model import Card, MatchResult
 from mtgparse.json_tournament import JsonTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
-from mtgparse.news_parse import NewsTournament
 
 
 def zip_add(tup1, tup2):

@@ -1,10 +1,7 @@
 import json
 import logging
-import os
-import time
 from typing import Optional
 
-import requests
 from bs4 import BeautifulSoup
 
 from mtgparse.common import cached_request
@@ -34,7 +31,7 @@ class MeleeTournament(Tournament):
             f"melee_tournament_{self.tournament_id}",
             "get",
             f"https://melee.gg/Tournament/View/{self.tournament_id}",
-            force=1,
+            force=True,
         )
         soup = BeautifulSoup(page_html, "lxml")
 
@@ -44,8 +41,8 @@ class MeleeTournament(Tournament):
 
         self.rounds = []
         for btn in round_selector.find_all("button"):
-            round_id = btn.get("data-id")
-            round_name = btn.get("data-name")
+            round_id = str(btn.get("data-id"))
+            round_name = str(btn.get("data-name"))
             if round_id and round_name:
                 self.rounds.append((int(round_id), round_name))
         return self.rounds
@@ -133,8 +130,7 @@ class MeleeTournament(Tournament):
                 force=force,
             )
             result = json.loads(raw_result)
-            for item in result["data"]:
-                yield item
+            yield from result["data"]
 
             if not result["data"]:
                 break
@@ -149,7 +145,7 @@ class MeleeTournament(Tournament):
             raw_result = cached_request(
                 f"melee_round_standings_{round_id}_{start}_{page_size}",
                 "post",
-                f"https://melee.gg/Standing/GetRoundStandings",
+                "https://melee.gg/Standing/GetRoundStandings",
                 data={
                     "draw": "4",
                     "start": str(start),
@@ -164,8 +160,7 @@ class MeleeTournament(Tournament):
                 },
             )
             result = json.loads(raw_result)
-            for item in result["data"]:
-                yield item
+            yield from result["data"]
 
             if not result["data"]:
                 break
@@ -238,16 +233,8 @@ class MeleeTournament(Tournament):
 
     def get_round_results(self) -> list[list[MatchResult]]:
         results = []
-        rounds = self.get_rounds()
         for round_id, _ in self.get_rounds():
             result = self.get_single_round_result(round_id)
             if result is not None:
                 results.append(result)
         return results
-
-
-if __name__ == "__main__":
-    t = MeleeTournament(331949)
-
-    result = t.get_players()
-    print(result)

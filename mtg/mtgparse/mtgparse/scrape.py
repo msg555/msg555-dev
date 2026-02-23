@@ -6,9 +6,12 @@ import argparse
 import logging
 import sys
 
+from mtgparse.data_model import Tournament
 from mtgparse.json_tournament import JsonTournament
 from mtgparse.melee_tournament_parse import MeleeTournament
 from mtgparse.news_parse import NewsTournament
+
+LOGGER = logging.getLogger(__name__)
 
 
 def parse_args():
@@ -38,6 +41,7 @@ def main() -> int:
         LOGGER.error("Must have exactly one of --melee-id, --magic-gg-event")
         return 1
 
+    tour: Tournament
     if args.magic_gg_event:
         tour = NewsTournament(args.magic_gg_event)
     elif args.melee_id:

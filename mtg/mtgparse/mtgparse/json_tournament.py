@@ -1,5 +1,4 @@
 import abc
-import dataclasses
 
 from pydantic import BaseModel
 
@@ -22,7 +21,7 @@ class JsonTournament(abc.ABC):
         return cls(TournamentModel.model_validate_json(data))
 
     @classmethod
-    def from_tournament(cls, tour: Tournament) -> None:
+    def from_tournament(cls, tour: Tournament) -> "JsonTournament":
         return cls(
             TournamentModel(
                 players=tour.get_players(),

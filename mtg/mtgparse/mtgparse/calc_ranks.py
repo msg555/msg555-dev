@@ -6,25 +6,15 @@ See https://mtg.fandom.com/wiki/Tiebreaker for documentation on how to compute t
 
 import argparse
 import copy
-import functools
-import itertools
 import logging
-import os
 import random
-import re
 from fractions import Fraction
-from typing import Iterable
+from typing import Sequence
 
-import requests
 import tqdm
-from bs4 import BeautifulSoup
-from Levenshtein import ratio as edit_ratio
 from scipy.stats import beta
 
-from mtgparse.data_model import Card, MatchResult
 from mtgparse.json_tournament import JsonTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
-from mtgparse.news_parse import NewsTournament
 
 
 def calc_ord(top_cut: int) -> list[int]:
@@ -38,7 +28,7 @@ def calc_ord(top_cut: int) -> list[int]:
     return order
 
 
-def get_top_cut(ordered_players: Iterable[str], top_cut_rounds: int) -> list[str]:
+def get_top_cut(ordered_players: Sequence[str], top_cut_rounds: int) -> list[str]:
     if len(ordered_players) < 2**top_cut_rounds:
         raise ValueError("Too few players for configured top cut")
     return [ordered_players[ind] for ind in calc_ord(top_cut_rounds)]
@@ -155,7 +145,7 @@ def sample_matchups(
     matchups: dict[str, dict[str, tuple[int, int, int]]],
 ) -> dict[str, dict[str, float]]:
     all_archs = list(matchups)
-    result = {arch: {} for arch in all_archs}
+    result: dict[str, dict[str, float]] = {arch: {} for arch in all_archs}
     for ind, arch_1 in enumerate(all_archs):
         result[arch_1][arch_1] = 0.5
         for arch_2 in all_archs[ind + 1 :]:
@@ -431,7 +421,7 @@ def main():
         init_player_matchups = copy.deepcopy(player_matchups)
         init_top_cut_players = copy.deepcopy(top_cut_players)
 
-        for sim_round in tqdm.trange(args.sim_rounds):
+        for _ in tqdm.trange(args.sim_rounds):
             player_data = copy.deepcopy(init_player_data)
             player_matchups = copy.deepcopy(init_player_matchups)
             top_cut_players = copy.deepcopy(init_top_cut_players)

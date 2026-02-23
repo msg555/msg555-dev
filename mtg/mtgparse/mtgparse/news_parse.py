@@ -1,12 +1,10 @@
-import functools
-import itertools
-import os
 import re
+from typing import Optional
 
-import requests
 from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
 
+from mtgparse.common import cached_request
 from mtgparse.data_model import Card, Deck, MatchResult, Player, Tournament
 
 
@@ -25,7 +23,7 @@ class NewsTournament(Tournament):
         self.rounds = [4, 5, 6, 7, 8, 12, 13, 14, 15, 16]
 
         self.players: Optional[dict[str, Player]] = None
-        self.normalize_cache = {}
+        self.normalize_cache: dict[str, str] = {}
 
     def get_players(self) -> dict[str, Player]:
         if self.players is not None:
@@ -34,36 +32,36 @@ class NewsTournament(Tournament):
         self.players = {}
         for bucket in self.decklist_buckets:
             url = f"https://magic.gg/decklists/{self.event_name}-{self.format_name}-decklists-{bucket}"
-            cache_path = (
-                f"cache/deck-{self.event_name}-{self.format_name}-{bucket}.html"
+            soup = BeautifulSoup(
+                cached_request(
+                    "deck-{self.event_name}-{self.format_name}-{bucket}.html",
+                    "get",
+                    url,
+                ),
+                "lxml",
             )
-            if os.path.exists(cache_path):
-                with open(cache_path, "r") as fdata:
-                    soup = BeautifulSoup(fdata.read(), "lxml")
-            else:
-                resp = requests.get(url)
-                resp.raise_for_status()
-                with open(cache_path, "wb") as fdata:
-                    fdata.write(resp.content)
-                soup = BeautifulSoup(resp.content, "lxml")
 
             for deck_data in soup.find_all("deck-list"):
+                main_deck_tag = deck_data.find("main-deck")
+                side_board_tag = deck_data.find("side-board")
+                if not main_deck_tag or not side_board_tag:
+                    continue
                 main_deck = [
                     _get_card_from_line(line)
-                    for line in deck_data.find("main-deck").text.split("\n")
+                    for line in main_deck_tag.text.split("\n")
                     if line.strip()
                 ]
                 side_board = [
                     _get_card_from_line(line)
-                    for line in deck_data.find("side-board").text.split("\n")
+                    for line in side_board_tag.text.split("\n")
                     if line.strip()
                 ]
 
-                ident = deck_data.get("deck-title").lower()
+                ident = str(deck_data.get("deck-title")).lower()
                 deck = Deck(
                     main_deck,
                     side_board,
-                    archetype=deck_data.get("subtitle"),
+                    archetype=str(deck_data.get("subtitle")),
                     author=None,
                     url=f"{url}#{ident.replace(' ', '-')}",
                 )
@@ -105,18 +103,14 @@ class NewsTournament(Tournament):
         return best[1]
 
     def get_single_round_result(self, round_num: int) -> list[MatchResult]:
-        cache_path = f"cache/{self.event_name}-results-{round_num}.html"
-        if os.path.exists(cache_path):
-            with open(cache_path, "r") as fdata:
-                soup = BeautifulSoup(fdata.read(), "lxml")
-        else:
-            resp = requests.get(
-                f"https://magic.gg/news/{self.event_name}-round-{round_num}-results"
-            )
-            resp.raise_for_status()
-            with open(cache_path, "wb") as fdata:
-                fdata.write(resp.content)
-            soup = BeautifulSoup(resp.content, "lxml")
+        soup = BeautifulSoup(
+            cached_request(
+                f"{self.event_name}-results-{round_num}.html",
+                "get",
+                f"https://magic.gg/news/{self.event_name}-round-{round_num}-results",
+            ),
+            "lxml",
+        )
 
         results: list[MatchResult] = []
         for table in soup.find_all("table"):

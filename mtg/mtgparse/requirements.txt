@@ -12,3 +12,5 @@ tqdm
 
 black
 isort
+mypy
+pylint

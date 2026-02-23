@@ -1,26 +1,7 @@
 import argparse
-import functools
-import itertools
 import logging
-import os
-import re
 
-import matplotlib
-import pandas as pd
-import plotly.express as px
-import requests
-from bs4 import BeautifulSoup
-from Levenshtein import ratio as edit_ratio
-
-from mtgparse.data_model import Card, MatchResult
 from mtgparse.json_tournament import JsonTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
-from mtgparse.news_parse import NewsTournament
-
-matplotlib.use("QtAgg")
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.manifold import MDS
 
 
 def zip_add(tup1, tup2):
@@ -57,7 +38,7 @@ def main():
     total = {}
     arch_players = {}
 
-    for round_idx, round_results in enumerate(tour.get_round_results()):
+    for round_results in tour.get_round_results():
         for round_result in round_results:
             p1 = round_result.p1
             p2 = round_result.p2

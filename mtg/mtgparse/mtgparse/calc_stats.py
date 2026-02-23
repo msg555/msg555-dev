@@ -1,25 +1,22 @@
-import functools
+"""
+This is mostly leftover logic that should be converted into more dedicated scripts.
+"""
+
+# pylint: disable=using-constant-test
+
+import argparse
 import itertools
 import logging
-import os
-import re
 
 import matplotlib
+import numpy as np
 import pandas as pd
 import plotly.express as px
-import requests
-from bs4 import BeautifulSoup
-from Levenshtein import ratio as edit_ratio
+from sklearn.manifold import MDS
 
-from mtgparse.data_model import Card, MatchResult
 from mtgparse.json_tournament import JsonTournament
-from mtgparse.melee_tournament_parse import MeleeTournament
-from mtgparse.news_parse import NewsTournament
 
 matplotlib.use("QtAgg")
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.manifold import MDS
 
 
 def zip_add(tup1, tup2):
@@ -42,13 +39,14 @@ def main():
     args = parse_args()
 
     tour = JsonTournament.from_file(args.input)
+    players = tour.get_players()
 
     matchup = {}
     total = {}
     arch_players = {}
     player_points = {}
 
-    for round_idx, round_results in enumerate(results):
+    for round_idx, round_results in enumerate(tour.get_round_results()):
         seen_in_round = set()
 
         for round_result in round_results:
@@ -151,7 +149,6 @@ def main():
         card_counts = {}
         for player in players.values():
             deck = player.deck
-            card_map = {card.name: card.count for card in deck.main_deck}
 
             points = player_points.get(player.ident, 0)
             in_main_deck = set()
