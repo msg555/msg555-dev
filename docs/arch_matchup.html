@@ -262,9 +262,9 @@
     const params = new URLSearchParams(window.location.search);
     const tournamentId = params.get('id');
 
-    let dataPath = "./tournament.json";
-    if (tournamentId) {
-        dataPath = `./tournament.${tournamentId}.json`;
+    let dataPath = "tournaments/default.json";
+    if (tournamentId && /^[a-zA-Z0-9-]+$/.test(tournamentId)) {
+        dataPath = `tournaments/${tournamentId}.json`;
     }
 
     fetch(dataPath)
