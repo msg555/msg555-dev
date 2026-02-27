@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archetype Matchup Table</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { height: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #222;
+            padding: 24px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #1a1a2e;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 10px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .divider { color: #aaa; font-size: 0.85rem; }
+
+        label { font-weight: 600; font-size: 0.85rem; color: #555; }
+
+        input[type="text"] {
+            padding: 7px 12px;
+            border: 1.5px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            width: 260px;
+        }
+
+        input[type="text"]:focus { outline: none; border-color: #1a73e8; }
+        input[type="file"] { font-size: 0.88rem; }
+
+        button {
+            padding: 7px 16px;
+            background: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-weight: 500;
+        }
+
+        button:hover { background: #1557b0; }
+
+        #error-msg {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+            font-size: 0.88rem;
+        }
+
+        #status-msg {
+            color: #777;
+            font-size: 0.88rem;
+            padding: 12px 4px;
+        }
+
+        .legend {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 0.78rem;
+            color: #666;
+            margin-top: 12px;
+        }
+
+        .legend-gradient {
+            width: 160px;
+            height: 14px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: linear-gradient(to right, rgb(180,0,0), rgb(15,15,15), rgb(0,120,0));
+        }
+
+        .legend-bg-gradient {
+            width: 100px;
+            height: 14px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background: linear-gradient(to right, #ffffff, #b9b9b9);
+        }
+
+        .legend-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #table-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        #table-container {
+            overflow: auto;
+            flex: 1;
+            min-height: 0;
+            max-width: calc(100vw - 48px);
+        }
+
+        .matchup-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            white-space: nowrap;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            font-size: 0.76rem;
+        }
+
+        .matchup-table th,
+        .matchup-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #e8e8e8;
+            border-right: 1px solid #e8e8e8;
+        }
+
+        /* Sticky top-left corner */
+        .matchup-table thead th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 4;
+        }
+
+        /* Sticky header row */
+        .matchup-table thead th {
+            background: #1e3a5f;
+            color: white;
+            font-weight: 600;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        /* Rotated archetype column headers */
+        .matchup-table thead th.col-arch {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            height: 110px;
+            vertical-align: bottom;
+            text-align: left;
+            font-size: 0.72rem;
+            padding: 6px 8px;
+        }
+
+        /* Sticky row label column */
+        .matchup-table td.row-header {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 1;
+            font-weight: 600;
+            text-align: left;
+            min-width: 150px;
+            border-right: 2px solid #c8c8c8;
+        }
+
+        .matchup-table tbody tr:hover td.row-header { background: #f0f7ff; }
+
+        td.players-cell { text-align: center; font-weight: 600; color: #444; }
+
+        td.total-cell {
+            text-align: center;
+            font-weight: 600;
+            border-right: 2px solid #b0c4f0;
+        }
+
+        td.matchup-cell { text-align: center; }
+
+        .win-rate { font-size: 0.80rem; font-weight: 700; display: block; }
+        .record { font-size: 0.68rem; color: #555; margin-top: 1px; }
+
+        td.no-data {
+            background: #f7f7f7 !important;
+            color: #c0c0c0;
+            text-align: center;
+        }
+
+        #tooltip {
+            display: none;
+            position: fixed;
+            background: #1e3a5f;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.78rem;
+            pointer-events: none;
+            z-index: 100;
+            white-space: nowrap;
+        }
+
+        /* Round corners on table */
+        .matchup-table thead th:first-child { border-top-left-radius: 10px; }
+        .matchup-table thead th:last-child { border-top-right-radius: 10px; }
+        .matchup-table tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
+        .matchup-table tbody tr:last-child td:last-child { border-bottom-right-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1 id="table-title">Archetype Matchup Table</h1>
+
+    <div id="status-msg"></div>
+    <div id="tooltip"></div>
+    <div id="error-msg" style="display:none"></div>
+    <div id="table-area" style="display:none">
+        <div id="table-container"></div>
+        <div class="legend">
+            <div class="legend-row">
+                <span>Win rate:</span>
+                <span style="color:rgb(180,0,0); font-weight:700">≤25%</span>
+                <div class="legend-gradient"></div>
+                <span style="color:rgb(0,120,0); font-weight:700">≥75%</span>
+                <span style="margin-left:8px; color:#aaa">— no data</span>
+            </div>
+            <div class="legend-row">
+                <span>Sample size:</span>
+                <span>few</span>
+                <div class="legend-bg-gradient"></div>
+                <span>many (n≥25)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+    const params = new URLSearchParams(window.location.search);
+    const tournamentId = params.get('id');
+
+    let dataPath = "./tournament.json";
+    if (tournamentId) {
+        dataPath = `./tournament.${tournamentId}.json`;
+    }
+
+    fetch(dataPath)
+        .then(r => { if (!r.ok) throw new Error('Could not load tournament, check url'); return r.json(); })
+        .then(data => renderTable(data))
+        .catch(err => showError('Failed to load: ' + err.message));
+
+    function showError(msg) {
+        const el = document.getElementById('error-msg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById('table-area').style.display = 'none';
+    }
+
+    function clearError() {
+        document.getElementById('error-msg').style.display = 'none';
+    }
+
+    function zipAdd(a, b) {
+        return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+    }
+
+    function computeMatchups(data) {
+        const players = data.players;
+        const roundResults = data.round_results;
+        const matchup = {};     // arch -> arch -> [W, L, D]
+        const total = {};       // arch -> [W, L, D]
+        const archPlayers = {}; // arch -> Set<playerId>
+
+        for (const round of roundResults) {
+            for (const result of round) {
+                const { p1, p2, games } = result;
+                if (p2 === null || p2 === undefined) continue; // bye
+
+                const player1 = players[p1];
+                const player2 = players[p2];
+                if (!player1 || !player2) continue;
+
+                const arch1 = player1.deck.archetype || 'Unknown';
+                const arch2 = player2.deck.archetype || 'Unknown';
+
+                if (!archPlayers[arch1]) archPlayers[arch1] = new Set();
+                if (!archPlayers[arch2]) archPlayers[arch2] = new Set();
+                archPlayers[arch1].add(p1);
+                archPlayers[arch2].add(p2);
+
+                // p1 is always match winner per data model; equal games = draw
+                let matchRes, revRes;
+                if (games[0] === games[1]) {
+                    matchRes = [0, 0, 1];
+                    revRes   = [0, 0, 1];
+                } else {
+                    matchRes = [1, 0, 0];
+                    revRes   = [0, 1, 0];
+                }
+
+                if (!matchup[arch1]) matchup[arch1] = {};
+                if (!matchup[arch1][arch2]) matchup[arch1][arch2] = [0, 0, 0];
+                matchup[arch1][arch2] = zipAdd(matchup[arch1][arch2], matchRes);
+
+                if (!total[arch1]) total[arch1] = [0, 0, 0];
+                total[arch1] = zipAdd(total[arch1], matchRes);
+
+                if (!matchup[arch2]) matchup[arch2] = {};
+                if (!matchup[arch2][arch1]) matchup[arch2][arch1] = [0, 0, 0];
+                matchup[arch2][arch1] = zipAdd(matchup[arch2][arch1], revRes);
+
+                if (!total[arch2]) total[arch2] = [0, 0, 0];
+                total[arch2] = zipAdd(total[arch2], revRes);
+            }
+        }
+
+        const deckArchs = Object.keys(archPlayers).sort(
+            (a, b) => archPlayers[b].size - archPlayers[a].size
+        );
+
+        return { matchup, total, archPlayers, deckArchs };
+    }
+
+    const MATCH_THRESHOLD = 25;
+
+    function bgColorForN(n) {
+        // white at n=0, mid-gray at n>=MATCH_THRESHOLD
+        const t = Math.min(1, n / MATCH_THRESHOLD);
+        const v = Math.round(255 - t * 70);
+        return `rgb(${v},${v},${v})`;
+    }
+
+    function winRateTextColor(wr) {
+        // dark red (<=25%) -> near-black (50%) -> dark green (>=75%)
+        const t = Math.max(0, Math.min(1, (wr - 25) / 50));
+        let r, g, b;
+        if (t <= 0.5) {
+            const s = t * 2;
+            r = Math.round(180 + (15 - 180) * s);
+            g = Math.round(15 * s);
+            b = Math.round(15 * s);
+        } else {
+            const s = (t - 0.5) * 2;
+            r = Math.round(15 * (1 - s));
+            g = Math.round(15 + (120 - 15) * s);
+            b = Math.round(15 * (1 - s));
+        }
+        return `rgb(${r},${g},${b})`;
+    }
+
+function formatRecord(rec) {
+        const n = rec[0] + rec[1] + rec[2];
+        if (n === 0) return null;
+        const wr = 100.0 * (rec[0] + rec[2] / 2.0) / n;
+        return { wr, n, record: `${rec[0]}-${rec[1]}-${rec[2]}` };
+    }
+
+    const tooltip = document.getElementById('tooltip');
+
+    function attachTooltip(el, text) {
+        let timer, lastX = 0, lastY = 0;
+        el.addEventListener('mouseenter', (e) => {
+            lastX = e.clientX; lastY = e.clientY;
+            timer = setTimeout(() => {
+                tooltip.textContent = text;
+                tooltip.style.left = (lastX + 14) + 'px';
+                tooltip.style.top  = (lastY - 36) + 'px';
+                tooltip.style.display = 'block';
+            }, 1000);
+        });
+        el.addEventListener('mousemove', (e) => {
+            lastX = e.clientX; lastY = e.clientY;
+            if (tooltip.style.display === 'block') {
+                tooltip.style.left = (lastX + 14) + 'px';
+                tooltip.style.top  = (lastY - 36) + 'px';
+            }
+        });
+        el.addEventListener('mouseleave', () => {
+            clearTimeout(timer);
+            tooltip.style.display = 'none';
+        });
+    }
+
+    function esc(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function makeCell(rec, extraClass) {
+        const td = document.createElement('td');
+        const fmt = formatRecord(rec || [0, 0, 0]);
+        if (fmt) {
+            td.className = 'matchup-cell' + (extraClass ? ' ' + extraClass : '');
+            td.style.backgroundColor = bgColorForN(fmt.n);
+            td.innerHTML =
+                `<span class="win-rate" style="color:${winRateTextColor(fmt.wr)}">${fmt.wr.toFixed(1)}%</span>` +
+                `<div class="record">${fmt.record}</div>`;
+        } else {
+            td.className = 'no-data' + (extraClass ? ' ' + extraClass : '');
+            td.textContent = '—';
+        }
+        return td;
+    }
+
+    function renderTable(data) {
+        clearError();
+
+        const title = data.title ? data.title : "Archetype Matchup Table";
+        document.title = title;
+        document.getElementById('table-title').textContent = title;
+
+        let stats;
+        try { stats = computeMatchups(data); }
+        catch (err) { showError('Error processing data: ' + err.message); return; }
+
+        const { matchup, total, archPlayers, deckArchs } = stats;
+
+        if (deckArchs.length === 0) {
+            showError('No archetype data found in this tournament file.');
+            return;
+        }
+
+        const playerCount = Object.keys(data.players || {}).length;
+        document.getElementById('status-msg').textContent =
+            `${playerCount} players · ${deckArchs.length} archetypes`;
+
+const table = document.createElement('table');
+        table.className = 'matchup-table';
+
+        // ── Header row ────────────────────────────────────────────────────────
+        const thead = document.createElement('thead');
+        const hrow = document.createElement('tr');
+
+        const mkTh = (text, cls) => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            if (cls) th.className = cls;
+            return th;
+        };
+
+        hrow.appendChild(mkTh('Archetype'));
+        hrow.appendChild(mkTh('Players'));
+        hrow.appendChild(mkTh('Total'));
+
+        for (const arch of deckArchs) {
+            const th = mkTh(arch, 'col-arch');
+            th.title = arch;
+            hrow.appendChild(th);
+        }
+
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        // ── Body rows ─────────────────────────────────────────────────────────
+        const tbody = document.createElement('tbody');
+
+        for (const arch of deckArchs) {
+            const tr = document.createElement('tr');
+
+            // Sticky row label
+            const labelTd = document.createElement('td');
+            labelTd.className = 'row-header';
+            labelTd.textContent = arch;
+            tr.appendChild(labelTd);
+
+            // Player count
+            const playersTd = document.createElement('td');
+            playersTd.className = 'players-cell';
+            playersTd.textContent = archPlayers[arch].size;
+            tr.appendChild(playersTd);
+
+            // Total record
+            const totalTd = makeCell(total[arch], 'total-cell');
+            tr.appendChild(totalTd);
+
+            // Per-archetype matchup cells
+            for (const arch2 of deckArchs) {
+                const rec = matchup[arch] ? matchup[arch][arch2] : null;
+                const td = makeCell(rec);
+                const span = td.querySelector('.win-rate');
+                if (span) attachTooltip(span, `${arch} vs ${arch2}`);
+                tr.appendChild(td);
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        table.appendChild(tbody);
+
+        const container = document.getElementById('table-container');
+        container.innerHTML = '';
+        container.appendChild(table);
+        document.getElementById('table-area').style.display = 'flex';
+    }
+    </script>
+</body>
+</html>
