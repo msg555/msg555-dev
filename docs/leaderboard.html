@@ -87,6 +87,10 @@
             font-size: 0.88rem;
         }
 
+        #page-links { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 0.88rem; }
+        #page-links a { color: #1a73e8; text-decoration: none; }
+        #page-links a:hover { text-decoration: underline; }
+
         #status-msg {
             color: #777;
             font-size: 0.88rem;
@@ -274,9 +278,17 @@
 
     function init(tournament, ranks) {
         const players = tournament.players || {};
-        const title = tournament.title ? `${tournament.title} — Leaderboard` : 'Tournament Leaderboard';
+        const title = tournament.title ? tournament.title : 'Tournament Leaderboard';
         document.title = title;
         document.getElementById('table-title').textContent = title;
+        if (tournament.source_url) {
+            const a = document.createElement('a');
+            a.href = tournament.source_url;
+            a.textContent = 'Data Source';
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.getElementById('page-links').appendChild(a);
+        }
 
         rows = Object.entries(ranks).map(([pid, r]) => {
             const player = players[pid];

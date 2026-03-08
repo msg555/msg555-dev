@@ -19,8 +19,14 @@ LOGGER = logging.getLogger(__name__)
 
 
 class MeleeTournament(Tournament):
-    def __init__(self, tournament_id: int) -> None:
+    def __init__(
+        self,
+        tournament_id: int,
+        *,
+        first_constructed_round: int = 0,
+    ) -> None:
         self.tournament_id = tournament_id
+        self.first_constructed_round = first_constructed_round
         self.rounds: Optional[list[tuple[int, str]]] = None
         self.players: Optional[dict[str, Player]] = None
 
@@ -85,10 +91,15 @@ class MeleeTournament(Tournament):
         player_decks = {}
         player_names = {}
         player_urls = {}
-        rc = 0
-        for match_result in self.page_round_results(rounds[0][0]):
+
+        # Use first round to ensure we get all player data. Then use first constructed
+        # round to overwrite any decklist data.
+        match_results = list(self.page_round_results(rounds[0][0]))
+        match_results.extend(
+            self.page_round_results(rounds[self.first_constructed_round][0])
+        )
+        for match_result in match_results:
             for competitor in match_result["Competitors"]:
-                rc += 1
                 decks = competitor["Decklists"]
                 player_decks[str(competitor["TeamId"])] = decks[0] if decks else None
                 player_names[str(competitor["TeamId"])] = " and ".join(

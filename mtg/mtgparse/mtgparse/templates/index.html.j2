@@ -120,52 +120,16 @@
                 </tr>
             </thead>
             <tbody>
-                
-                <tr class="active">
-                    <td class="col-title">Spotlight: TMNT</td>
-                    <td><span class="badge">standard</span></td>
-                    <td><a href="leaderboard.html?id=spotlight-tmnt">Leaderboard</a></td>
-                    <td><a href="arch_matchup.html?id=spotlight-tmnt">Matchups</a></td>
-                    <td></td>
-                    <td><a href="https://melee.gg/Tournament/View/385921" target="_blank" rel="noopener noreferrer">Data Source</a></td>
+                {% for id, meta in tournaments %}
+                <tr{% if meta.active %} class="active"{% endif %}>
+                    <td class="col-title">{{ meta.title }}</td>
+                    <td><span class="badge">{{ meta.format }}</span></td>
+                    <td><a href="leaderboard.html?id={{ id }}">Leaderboard</a></td>
+                    <td><a href="arch_matchup.html?id={{ id }}">Matchups</a></td>
+                    <td>{% if id in has_embeddings %}<a href="embeddings-{{ id }}.html">Deck Clustering</a>{% endif %}</td>
+                    <td>{% if meta.get_url() %}<a href="{{ meta.get_url() }}" target="_blank" rel="noopener noreferrer">Data Source</a>{% endif %}</td>
                 </tr>
-                
-                <tr>
-                    <td class="col-title">Pro Tour Lorwyn</td>
-                    <td><span class="badge">standard</span></td>
-                    <td><a href="leaderboard.html?id=ptlorwyn">Leaderboard</a></td>
-                    <td><a href="arch_matchup.html?id=ptlorwyn">Matchups</a></td>
-                    <td><a href="embeddings-ptlorwyn.html">Deck Clustering</a></td>
-                    <td><a href="https://melee.gg/Tournament/View/394299" target="_blank" rel="noopener noreferrer">Data Source</a></td>
-                </tr>
-                
-                <tr>
-                    <td class="col-title">RC Milwaukee 2026</td>
-                    <td><span class="badge">standard</span></td>
-                    <td><a href="leaderboard.html?id=rcmilwaukee2026">Leaderboard</a></td>
-                    <td><a href="arch_matchup.html?id=rcmilwaukee2026">Matchups</a></td>
-                    <td><a href="embeddings-rcmilwaukee2026.html">Deck Clustering</a></td>
-                    <td><a href="https://melee.gg/Tournament/View/339227" target="_blank" rel="noopener noreferrer">Data Source</a></td>
-                </tr>
-                
-                <tr>
-                    <td class="col-title">RC Portland 2026</td>
-                    <td><span class="badge">standard</span></td>
-                    <td><a href="leaderboard.html?id=rcportland2026">Leaderboard</a></td>
-                    <td><a href="arch_matchup.html?id=rcportland2026">Matchups</a></td>
-                    <td><a href="embeddings-rcportland2026.html">Deck Clustering</a></td>
-                    <td><a href="https://melee.gg/Tournament/View/331949" target="_blank" rel="noopener noreferrer">Data Source</a></td>
-                </tr>
-                
-                <tr>
-                    <td class="col-title">RC Santiago 2026</td>
-                    <td><span class="badge">standard</span></td>
-                    <td><a href="leaderboard.html?id=rcsantiago2026">Leaderboard</a></td>
-                    <td><a href="arch_matchup.html?id=rcsantiago2026">Matchups</a></td>
-                    <td><a href="embeddings-rcsantiago2026.html">Deck Clustering</a></td>
-                    <td><a href="https://melee.gg/Tournament/View/401688" target="_blank" rel="noopener noreferrer">Data Source</a></td>
-                </tr>
-                
+                {% endfor %}
             </tbody>
         </table>
     </section>

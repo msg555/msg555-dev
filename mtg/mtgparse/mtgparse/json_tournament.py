@@ -1,16 +1,18 @@
-import abc
-
 from pydantic import BaseModel
 
 from mtgparse.data_model import MatchResult, Player, Tournament
 
 
 class TournamentModel(BaseModel):
+    title: str = ""
+    source_url: str = ""
+    limited_rounds: list[int] = []
+    top_cut_rounds: int = 3
     players: dict[str, Player]
     round_results: list[list[MatchResult]]
 
 
-class JsonTournament(abc.ABC):
+class JsonTournament(Tournament):
     def __init__(self, model: TournamentModel) -> None:
         self.model = model
 

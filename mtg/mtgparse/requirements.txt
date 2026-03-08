@@ -9,6 +9,8 @@ plotly
 pandas
 matplotlib
 tqdm
+pyyaml
+jinja2
 
 black
 isort

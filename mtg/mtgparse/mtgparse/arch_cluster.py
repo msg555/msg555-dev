@@ -8,6 +8,7 @@ import pandas as pd
 import plotly.express as px
 from sklearn.manifold import MDS
 
+from mtgparse.data_model import Tournament
 from mtgparse.json_tournament import JsonTournament
 
 matplotlib.use("QtAgg")
@@ -28,43 +29,46 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
-    logging.basicConfig(level=logging.INFO)
-    args = parse_args()
-
-    tour = JsonTournament.from_file(args.input)
+def create_embedding_html(
+    tour: Tournament,
+    output_file: str,
+    *,
+    show: bool = False,
+) -> bool:
     players = tour.get_players()
 
-    cards = set()
+    cards: set[str] = set()
     for player in players.values():
         deck = player.deck
         cards.update(card.name for card in deck.main_deck)
         cards.update(card.name for card in deck.side_board)
 
+    if not cards:
+        return False
+
     card_index = {card: idx for idx, card in enumerate(cards)}
     player_idents = list(players)
 
     vecs = np.zeros((len(players), len(cards)))
-    for player_idx, player in enumerate(player_idents):
-        deck = players[player].deck
+    for player_index, player_id in enumerate(player_idents):
+        deck = players[player_id].deck
         for card in itertools.chain(deck.main_deck, deck.side_board):
-            vecs[player_idx][card_index[card.name]] += card.count
-
-    print(vecs)
+            vecs[player_index][card_index[card.name]] += card.count
 
     mds = MDS(n_components=2, metric=True, max_iter=100, eps=1e-4)
     vec_2d = mds.fit_transform(vecs)
 
-    arch_map = {}
-    arch_list = []
-    categories = []
-    for player in player_idents:
-        arch = players[player].deck.archetype
+    arch_map: dict[str, int] = {}
+    arch_list: list[str] = []
+    list_categories: list[int] = []
+    for player_id in player_idents:
+        arch = players[player_id].deck.archetype
         if arch not in arch_map:
             arch_map[arch] = len(arch_map)
             arch_list.append(arch)
-        categories.append(arch_map[arch])
-    categories = np.array(categories)
+        list_categories.append(arch_map[arch])
+
+    categories = np.array(list_categories)
 
     df = pd.DataFrame(
         {
@@ -112,10 +116,21 @@ plot.on('plotly_click', function(data){
 </body>
 """,
     )
-    fig.show()
+    if show:
+        fig.show()
 
-    with open("plot.html", "w", encoding="utf-8") as fhtml:
+    with open(output_file, "w", encoding="utf-8") as fhtml:
         fhtml.write(figure_html)
+
+    return True
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    args = parse_args()
+
+    tour = JsonTournament.from_file(args.input)
+    create_embedding_html(tour, "plot.html", show=True)
 
 
 if __name__ == "__main__":

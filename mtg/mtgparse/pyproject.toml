@@ -10,6 +10,8 @@ disable = [
   "too-many-statements",
   "too-many-branches",
   "too-many-nested-blocks",
+  "too-many-arguments",
+  "too-many-positional-arguments",
   "fixme",
 ]
 

@@ -82,6 +82,10 @@
             font-size: 0.88rem;
         }
 
+        #page-links { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 0.88rem; }
+        #page-links a { color: #1a73e8; text-decoration: none; }
+        #page-links a:hover { text-decoration: underline; }
+
         #status-msg {
             color: #777;
             font-size: 0.88rem;
@@ -299,8 +303,12 @@
         const matchup = {};     // arch -> arch -> [W, L, D]
         const total = {};       // arch -> [W, L, D]
         const archPlayers = {}; // arch -> Set<playerId>
+        const limitedRounds = new Set(data.limited_rounds || []);
 
-        for (const round of roundResults) {
+        for (const [roundIdx, round] of roundResults.entries()) {
+            if (limitedRounds.has(roundIdx)) {
+                continue;
+            }
             for (const result of round) {
                 const { p1, p2, games } = result;
                 if (p2 === null || p2 === undefined) continue; // bye
@@ -440,6 +448,14 @@ function formatRecord(rec) {
         const title = data.title ? data.title : "Archetype Matchup Table";
         document.title = title;
         document.getElementById('table-title').textContent = title;
+        if (data.source_url) {
+            const a = document.createElement('a');
+            a.href = data.source_url;
+            a.textContent = 'Data Source';
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            document.getElementById('page-links').appendChild(a);
+        }
 
         let stats;
         try { stats = computeMatchups(data); }

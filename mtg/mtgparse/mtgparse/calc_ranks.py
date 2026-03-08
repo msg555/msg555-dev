@@ -5,18 +5,20 @@ See https://mtg.fandom.com/wiki/Tiebreaker for documentation on how to compute t
 """
 
 import argparse
+import contextlib
 import copy
 import json
 import logging
 import random
 import sys
 from fractions import Fraction
-from typing import Sequence
+from typing import Optional, Sequence
 
 import pandas
 import tqdm
 from scipy.stats import beta
 
+from mtgparse.data_model import Tournament
 from mtgparse.json_tournament import JsonTournament
 
 
@@ -189,11 +191,14 @@ TOP_CUT_WEIGHT = 10000
 REQUIRED_POINTS = {9: 18}
 
 
-def main() -> int:
-    logging.basicConfig(level=logging.INFO)
-    args = parse_args()
-
-    tour = JsonTournament.from_file(args.input)
+def calc_ranks(
+    tour: Tournament,
+    *,
+    round_limit: int = 0,
+    top_cut_rounds: int = 3,
+    sim_rounds: int = 0,
+    limited_rounds: Optional[list[int]] = None,
+):
     players = tour.get_players()
     all_round_results = tour.get_round_results()
 
@@ -204,8 +209,10 @@ def main() -> int:
     # players in the top cut.
     top_cut_players: list[str] = []
 
+    st_limited_rounds = set(limited_rounds or ())
+
     def round_weight(round_idx: int) -> int:
-        if round_idx < len(all_round_results) - args.top_cut:
+        if round_idx < len(all_round_results) - top_cut_rounds:
             return 1
         return TOP_CUT_WEIGHT
 
@@ -237,14 +244,14 @@ def main() -> int:
     round_total = len(all_round_results)
     has_round_pending: set[str] = set()
     for round_idx, round_results in enumerate(all_round_results):
-        if args.rounds and args.rounds <= round_idx:
+        if round_limit and round_limit <= round_idx:
             break
         if not round_results:
             # Empty results means the round hasn't been recorded yet.
             break
 
         # If we're heading into top cut need to calculate who made it.
-        if round_idx == round_total - args.top_cut:
+        if round_idx == round_total - top_cut_rounds:
             # Setup single elimination structure
             rem_players = [
                 player_id
@@ -253,7 +260,7 @@ def main() -> int:
             ]
             rem_players.sort(key=tiebreakers)
             top_cut_players.clear()
-            top_cut_players.extend(get_top_cut(rem_players, args.top_cut))
+            top_cut_players.extend(get_top_cut(rem_players, top_cut_rounds))
 
         weight = round_weight(round_idx)
         seen_in_round = set()
@@ -291,16 +298,17 @@ def main() -> int:
             player_data[p2].record_match(games, reverse=True, weight=weight)
 
             # Record matchup result
-            arch_1 = players[p1].deck.archetype
-            arch_2 = players[p2].deck.archetype
-            arch_matchup.setdefault(arch_1, {})[arch_2] = zip_add(
-                arch_matchup.get(arch_1, {}).get(arch_2, (0, 0, 0)),
-                games,
-            )
-            arch_matchup.setdefault(arch_2, {})[arch_1] = zip_add(
-                arch_matchup.get(arch_2, {}).get(arch_1, (0, 0, 0)),
-                (games[1], games[0], games[2]),
-            )
+            if round_idx not in st_limited_rounds:
+                arch_1 = players[p1].deck.archetype
+                arch_2 = players[p2].deck.archetype
+                arch_matchup.setdefault(arch_1, {})[arch_2] = zip_add(
+                    arch_matchup.get(arch_1, {}).get(arch_2, (0, 0, 0)),
+                    games,
+                )
+                arch_matchup.setdefault(arch_2, {})[arch_1] = zip_add(
+                    arch_matchup.get(arch_2, {}).get(arch_1, (0, 0, 0)),
+                    (games[1], games[0], games[2]),
+                )
 
     arch_matchup_probs: dict[str, dict[str, float]] = {}
 
@@ -321,8 +329,8 @@ def main() -> int:
             for match_result in all_round_results[round_idx]:
                 if not match_result.complete:
                     pairings.append((match_result.p1, match_result.p2))
-        elif round_idx < round_total - args.top_cut:
-            if round_idx < round_total - args.top_cut - 1:
+        elif round_idx < round_total - top_cut_rounds:
+            if round_idx < round_total - top_cut_rounds - 1:
                 # Pair randomly among players with the same number of points.
                 # We reuse the power pairing logic but just order players by their
                 # points and break ties using a random key.
@@ -357,18 +365,18 @@ def main() -> int:
                     # Give bye if no way to pair
                     pairings.append((p1, None))
         else:
-            if round_idx == round_total - args.top_cut:
+            if round_idx == round_total - top_cut_rounds:
                 # Setup single elimination structure
                 rem_players.sort(key=tiebreakers)
                 top_cut_players.clear()
-                top_cut_players.extend(get_top_cut(rem_players, args.top_cut))
+                top_cut_players.extend(get_top_cut(rem_players, top_cut_rounds))
                 rem_players = top_cut_players
             else:
                 rem_players = [
                     player_id
                     for player_id in top_cut_players
                     if player_data[player_id].points // TOP_CUT_WEIGHT // 3
-                    == round_idx - round_total + args.top_cut
+                    == round_idx - round_total + top_cut_rounds
                 ]
 
             assert len(rem_players) == 2 ** (round_total - round_idx)
@@ -389,8 +397,8 @@ def main() -> int:
         # should be a relatively accurate assumption.
 
         intentional_draws = set()
-        if not partial and round_idx == round_total - args.top_cut - 1:
-            cut_off_rank = 2**args.top_cut
+        if not partial and round_idx == round_total - top_cut_rounds - 1:
+            cut_off_rank = 2**top_cut_rounds
 
             orig_breakers = {
                 player_id: tiebreakers(player_id) for player_id in rem_players
@@ -441,9 +449,12 @@ def main() -> int:
                 player_data[p2].record_match((0, 0, 0), weight=weight)
                 continue
 
-            matchup_prob = arch_matchup_probs.get(players[p1].deck.archetype, {}).get(
-                players[p2].deck.archetype, 0.5
-            )
+            if round_idx in st_limited_rounds:
+                matchup_prob = 0.5
+            else:
+                matchup_prob = arch_matchup_probs.get(
+                    players[p1].deck.archetype, {}
+                ).get(players[p2].deck.archetype, 0.5)
             games = [0, 0]
             while all(g < 2 for g in games):
                 winner = 0 if random.random() < matchup_prob else 1
@@ -452,15 +463,22 @@ def main() -> int:
             player_data[p1].record_match((games[0], games[1], 0), weight=weight)
             player_data[p2].record_match((games[1], games[0], 0), weight=weight)
 
+    if not all_round_results:
+        sim_rounds = 0  # Empty tournament?
+    elif all_round_results[-1] and all(
+        result.complete for result in all_round_results[-1]
+    ):
+        sim_rounds = 0  # Tournament is over, nothing to simulate
+
     player_stats = {}
-    if args.sim_rounds:
+    if sim_rounds:
         player_stats = {player_id: PlayerStats() for player_id in players}
 
         init_player_data = copy.deepcopy(player_data)
         init_player_matchups = copy.deepcopy(player_matchups)
         init_top_cut_players = copy.deepcopy(top_cut_players)
 
-        for _ in tqdm.trange(args.sim_rounds):
+        for _ in tqdm.trange(sim_rounds):
             player_data = copy.deepcopy(init_player_data)
             player_matchups = copy.deepcopy(init_player_matchups)
             top_cut_players = copy.deepcopy(init_top_cut_players)
@@ -502,32 +520,50 @@ def main() -> int:
             stats = player_stats[player_id]
             player_output["rank_best"] = stats.rank_best + 1
             player_output["rank_worst"] = stats.rank_worst + 1
-            player_output["day_2"] = stats.day_2 / args.sim_rounds
+            player_output["day_2"] = stats.day_2 / sim_rounds
             player_output.update(
                 {
-                    f"top_{2 ** ind}": stats.top_p2[ind] / args.sim_rounds
+                    f"top_{2 ** ind}": stats.top_p2[ind] / sim_rounds
                     for ind in range(0, PlayerStats.MAX_POWER)
                 }
             )
 
         output_data[player_id] = player_output
 
-    if args.format == "csv":
-        df = pandas.DataFrame(
-            [
-                {"player": player_id} | player_output
-                for player_id, player_output in output_data.items()
-            ]
-        )
-        df.to_csv(args.output or sys.stdout, index=False, sep=",")
-    elif args.format == "json":
-        if args.output:
-            with open(args.output, "w", encoding="utf-8") as fout:
-                json.dump(output_data, fout)
+    return output_data
+
+
+def output_csv(fobj, output_data) -> None:
+    df = pandas.DataFrame(
+        [
+            {"player": player_id} | player_output
+            for player_id, player_output in output_data.items()
+        ]
+    )
+    df.to_csv(fobj, index=False, sep=",")
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO)
+    args = parse_args()
+
+    tour = JsonTournament.from_file(args.input)
+    ranks = calc_ranks(
+        tour,
+        round_limit=args.rounds,
+        top_cut_rounds=args.top_cut,
+        sim_rounds=args.sim_rounds,
+    )
+
+    with (
+        open(args.output, "w", encoding="utf-8")
+        if args.output
+        else contextlib.nullcontext(sys.stdout)
+    ) as out_f:
+        if args.format == "csv":
+            output_csv(out_f, ranks)
         else:
-            json.dump(output_data, sys.stdout)
-    else:
-        raise ValueError("Unknown output format")
+            json.dump(ranks, out_f)
 
     return 0
 

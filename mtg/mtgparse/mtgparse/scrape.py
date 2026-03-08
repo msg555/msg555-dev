@@ -8,7 +8,6 @@ import sys
 
 from mtgparse.data_model import Tournament
 from mtgparse.json_tournament import JsonTournament
-from mtgparse.magic_gg_tournament_parse import MagicGGTournament
 from mtgparse.melee_tournament_parse import MeleeTournament
 
 LOGGER = logging.getLogger(__name__)
@@ -19,10 +18,6 @@ def parse_args():
     parser.add_argument(
         "--melee-id",
         help="melee tournament ID",
-    )
-    parser.add_argument(
-        "--magic-gg-event",
-        help="magic.gg event name",
     )
     parser.add_argument(
         "-o",
@@ -42,9 +37,7 @@ def main() -> int:
         return 1
 
     tour: Tournament
-    if args.magic_gg_event:
-        tour = MagicGGTournament(args.magic_gg_event)
-    elif args.melee_id:
+    if args.melee_id:
         tour = MeleeTournament(args.melee_id)
     else:
         assert False

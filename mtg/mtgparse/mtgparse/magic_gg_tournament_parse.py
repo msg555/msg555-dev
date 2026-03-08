@@ -4,6 +4,7 @@ from typing import Optional
 from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
 
+from mtgparse.calc_ranks import get_top_cut
 from mtgparse.common import cached_request
 from mtgparse.data_model import Card, Deck, MatchResult, Player, Tournament
 
@@ -16,11 +17,19 @@ def _get_card_from_line(line: str) -> Card:
 
 
 class MagicGGTournament(Tournament):
-    def __init__(self, event_name: str) -> None:
+    def __init__(
+        self,
+        event_name: str,
+        format_name: str,
+        rounds: int,
+        decklist_buckets: list[str],
+        top_cut_rounds: int,
+    ) -> None:
         self.event_name = event_name
-        self.decklist_buckets = ["a-e", "f-l", "m-r", "s-z"]
-        self.format_name = "standard"
-        self.rounds = [4, 5, 6, 7, 8, 12, 13, 14, 15, 16]
+        self.format_name = format_name
+        self.rounds = rounds
+        self.decklist_buckets = decklist_buckets
+        self.top_cut_rounds = top_cut_rounds
 
         self.players: Optional[dict[str, Player]] = None
         self.normalize_cache: dict[str, str] = {}
@@ -58,7 +67,6 @@ class MagicGGTournament(Tournament):
                 ]
 
                 ident = str(deck_data.get("deck-title")).lower()
-                print(ident)
                 deck = Deck(
                     main_deck,
                     side_board,
@@ -165,5 +173,81 @@ class MagicGGTournament(Tournament):
 
         return results
 
+    def _parse_round_results(self, doc: str, is_final: bool = False) -> list[str]:
+        soup = BeautifulSoup(doc, "lxml")
+
+        # pylint: disable=unused-variable
+        results: list[str] = []
+        for table in soup.find_all("table"):
+            for row in table.find_all("tr"):
+                cols = [col.text for col in row.find_all("td")]
+                if is_final:
+                    if len(cols) < 4:
+                        continue
+                    rank, points, first_name, last_name, *_ = cols
+                    name = self._normalize_name(f"{first_name} {last_name}")
+                else:
+                    if len(cols) < 3:
+                        continue
+                    rank, full_name, points, *_ = cols
+                    name = self._normalize_name(full_name)
+
+                results.append(name)
+
+        return results
+
+    def get_top_cut_results(self) -> list[list[MatchResult]]:
+        """
+        Infer top cut resutls based on final standings and pre-top-cut standings.
+        Note that using this method we don't actually have the real game results
+        so we just treat it as 1-0-0 game result to have a minimal impact on game
+        statistics.
+        """
+        final_standings = self._parse_round_results(
+            cached_request(
+                f"{self.event_name}-final-standings.html",
+                "get",
+                f"https://magic.gg/news/{self.event_name}-final-standings",
+            ),
+            is_final=True,
+        )
+        pre_cut_standings = self._parse_round_results(
+            cached_request(
+                f"{self.event_name}-round-{self.rounds}-standings.html",
+                "get",
+                f"https://magic.gg/news/{self.event_name}-round-{self.rounds}-standings",
+            )
+        )
+        cut_off_rank = 2**self.top_cut_rounds
+
+        final_standings = final_standings[:cut_off_rank]
+        pre_cut_standings = pre_cut_standings[:cut_off_rank]
+        if len(final_standings) < cut_off_rank:
+            return [[] for _ in range(self.top_cut_rounds)]
+
+        final_rank = {name: rank for rank, name in enumerate(final_standings)}
+        order = get_top_cut(pre_cut_standings, self.top_cut_rounds)
+
+        result = []
+        for _ in range(self.top_cut_rounds):
+            round_results = []
+            new_order = []
+            for ind in range(0, len(order), 2):
+                p1 = order[ind]
+                p2 = order[ind + 1]
+                if final_rank[p2] < final_rank[p1]:
+                    p1, p2 = p2, p1
+                round_results.append(MatchResult(p1, p2, (1, 0, 0)))
+                new_order.append(p1)
+            result.append(round_results)
+            order = new_order
+
+        return result
+
     def get_round_results(self) -> list[list[MatchResult]]:
-        return [self.get_single_round_result(round_num) for round_num in self.rounds]
+        result = [
+            self.get_single_round_result(round_num + 1)
+            for round_num in range(self.rounds)
+        ]
+        result.extend(self.get_top_cut_results())
+        return result
