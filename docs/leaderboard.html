@@ -219,9 +219,11 @@
         .lb-table td.col-player {
             background: white;
             font-weight: 600;
-            min-width: 160px;
+            max-width: 160px;
             text-align: left;
             border-right: 2px solid #c8c8c8;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .lb-table td.col-player a {
             color: inherit;
@@ -230,7 +232,7 @@
         .lb-table tbody tr:hover td { background: #f0f7ff !important; }
 
         td.col-rank  { text-align: center; color: #888; font-weight: 600; width: 40px; }
-        td.col-arch  { text-align: left; color: #444; min-width: 120px; }
+        td.col-arch  { text-align: left; color: #444; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
         td.col-record { text-align: center; font-weight: 700; }
         td.col-record.pending { font-weight: normal; font-style: italic; }
         td.col-points { text-align: center; font-weight: 700; }
@@ -316,24 +318,24 @@
 
     // All possible probability columns, in display order
     const ALL_PROB_COLS = [
-        { key: 'day_2',   label: 'Day 2',   defaultOn: true  },
-        { key: 'top_1',   label: 'Top 1',   defaultOn: false },
-        { key: 'top_2',   label: 'Top 2',   defaultOn: false },
-        { key: 'top_4',   label: 'Top 4',   defaultOn: false },
-        { key: 'top_8',   label: 'Top 8',   defaultOn: true  },
-        { key: 'top_16',  label: 'Top 16',  defaultOn: true  },
-        { key: 'top_32',  label: 'Top 32',  defaultOn: true  },
-        { key: 'top_64',  label: 'Top 64',  defaultOn: true  },
-        { key: 'top_128', label: 'Top 128', defaultOn: false },
-        { key: 'top_256', label: 'Top 256', defaultOn: false },
+        { key: 'day_2',   label: 'Day 2',   defaultOn: true,  tooltip: 'Probability of advancing to Day 2' },
+        { key: 'top_1',   label: 'Top 1',   defaultOn: false, tooltip: 'Probability of finishing 1st' },
+        { key: 'top_2',   label: 'Top 2',   defaultOn: false, tooltip: 'Probability of finishing in the top 2' },
+        { key: 'top_4',   label: 'Top 4',   defaultOn: false, tooltip: 'Probability of finishing in the top 4' },
+        { key: 'top_8',   label: 'Top 8',   defaultOn: true,  tooltip: 'Probability of finishing in the top 8' },
+        { key: 'top_16',  label: 'Top 16',  defaultOn: true,  tooltip: 'Probability of finishing in the top 16' },
+        { key: 'top_32',  label: 'Top 32',  defaultOn: true,  tooltip: 'Probability of finishing in the top 32' },
+        { key: 'top_64',  label: 'Top 64',  defaultOn: true,  tooltip: 'Probability of finishing in the top 64' },
+        { key: 'top_128', label: 'Top 128', defaultOn: false, tooltip: 'Probability of finishing in the top 128' },
+        { key: 'top_256', label: 'Top 256', defaultOn: false, tooltip: 'Probability of finishing in the top 256' },
     ];
 
     // Optional non-probability columns (always present in data, but toggleable)
     const EXTRA_TOGGLE_COLS = [
-        { key: 'omw',   label: 'OMW%',       defaultOn: true  },
-        { key: 'gw',    label: 'GW%',        defaultOn: false },
-        { key: 'ogw',   label: 'OGW%',       defaultOn: false },
-        { key: 'range', label: 'Rank Range', defaultOn: true  },
+        { key: 'omw',   label: 'OMW%',  defaultOn: true,  tooltip: 'Opponent Match Win %' },
+        { key: 'gw',    label: 'GW%',   defaultOn: false, tooltip: 'Game Win %' },
+        { key: 'ogw',   label: 'OGW%',  defaultOn: false, tooltip: 'Opponent Game Win %' },
+        { key: 'range', label: 'Range', defaultOn: true,  tooltip: 'Range of final ranks by simulation' },
     ];
 
     let sortKey = 'rank';
@@ -477,10 +479,11 @@
         renderTable();
     }
 
-    function mkTh(label, key, cls) {
+    function mkTh(label, key, cls, tooltip) {
         const th = document.createElement('th');
         th.textContent = label;
         if (cls) th.className = cls;
+        if (tooltip) th.title = tooltip;
         if (sortKey === key) th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
         th.addEventListener('click', () => setSort(key));
         return th;
@@ -497,6 +500,9 @@
                 td.appendChild(a);
             } else {
                 td.textContent = content;
+            }
+            if (cls === 'col-player' || cls === 'col-arch') {
+                td.title = content;
             }
         }
         if (style) Object.assign(td.style, style);
@@ -529,17 +535,15 @@
         const thead = document.createElement('thead');
         const hrow  = document.createElement('tr');
 
-        hrow.appendChild(mkTh('#', 'rank'));
+        hrow.appendChild(mkTh('#', 'rank', null, 'Current rank'));
         hrow.appendChild(mkTh('Player', 'name', 'col-player'));
         if (showArchCol) hrow.appendChild(mkTh('Archetype', 'archetype'));
-        hrow.appendChild(mkTh('Record', 'record'));
-        hrow.appendChild(mkTh('Pts', 'points'));
-        if (colVisible['omw'])   hrow.appendChild(mkTh('OMW%', 'omw'));
-        if (colVisible['gw'])    hrow.appendChild(mkTh('GW%', 'gw'));
-        if (colVisible['ogw'])   hrow.appendChild(mkTh('OGW%', 'ogw'));
-        if (colVisible['range'] && hasSimData) hrow.appendChild(mkTh('Rank Range', 'range'));
-        for (const col of availProbCols) {
-            if (colVisible[col.key]) hrow.appendChild(mkTh(col.label, col.key));
+        hrow.appendChild(mkTh('Record', 'record', null, 'Match record'));
+        hrow.appendChild(mkTh('Pts', 'points', null, 'Match points'));
+        for (const col of [...EXTRA_TOGGLE_COLS, ...availProbCols]) {
+            if (col.key === 'range' && !hasSimData) continue;
+            if (!colVisible[col.key]) continue;
+            hrow.appendChild(mkTh(col.label, col.key, null, col.tooltip));
         }
 
         thead.appendChild(hrow);
