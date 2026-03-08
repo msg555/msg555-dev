@@ -35,3 +35,10 @@ spotlight-tmnt:
   top_cut_rounds: 3
   active: true
   default: true
+
+rcturin2026:
+  type: melee
+  melee_id: 392336
+  title: RC Turin 2026
+  format: standard
+  top_cut_rounds: 3

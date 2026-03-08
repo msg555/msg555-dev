@@ -27,7 +27,7 @@ class TournamentMetadata(BaseModel):
     format: str
     top_cut_rounds: int = 3
     limited_rounds: list[int] = []
-    sim_rounds: int = 5000
+    sim_rounds: int = 1000
     active: bool = False
     default: bool = False
 
