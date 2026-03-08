@@ -86,7 +86,9 @@ def parse_args():
 class PlayerData:
     MIN_PERCENTAGE = Fraction(1, 3)
 
-    def __init__(self) -> None:
+    def __init__(self, top_cut_round_idx: int) -> None:
+        self.top_cut_round_idx = top_cut_round_idx
+        self.top_cut_points = 0
         self.points = 0
         self.rounds = 0
         self.match_record = (0, 0, 0)
@@ -97,25 +99,33 @@ class PlayerData:
         games: tuple[int, int, int],
         *,
         reverse: bool = False,
-        weight: int = 1,
     ) -> None:
         self.rounds += 1
         if reverse:
             games = (games[1], games[0], games[2])
-        self.game_record = zip_add(self.game_record, games)
+
+        points = 0
         if games[0] > games[1]:
             match = (1, 0, 0)
-            self.points += 3 * weight
+            points = 3
         elif games[1] > games[0]:
             match = (0, 1, 0)
+            points = 0
         else:
             match = (0, 0, 1)
-            self.points += 1 * weight
+            points = 1
+
+        # This is just for record-keeping, not used in breakers
         self.match_record = zip_add(self.match_record, match)
 
-    @property
-    def points_true(self) -> int:
-        return self.points // TOP_CUT_WEIGHT + self.points % TOP_CUT_WEIGHT
+        if self.rounds <= self.top_cut_round_idx:
+            self.points += points
+
+            # This is just used for breakers calculations
+            self.game_record = zip_add(self.game_record, games)
+        else:
+            # After top-cut do not affect other breakers
+            self.top_cut_points += points
 
     @property
     def match_win_percentage(self) -> Fraction:
@@ -123,7 +133,7 @@ class PlayerData:
             return Fraction(1, 2)
         return max(
             self.MIN_PERCENTAGE,
-            Fraction(self.points_true, 3 * self.rounds),
+            Fraction(self.points, 3 * min(self.rounds, self.top_cut_round_idx)),
         )
 
     @property
@@ -182,11 +192,6 @@ def sample_matchups(
     return result
 
 
-# This can be anything as long as it's larger than the max
-# points anyone can get pre top cut. Convenient if it's a power
-# of 10 so we can see top cut points and initial points.
-TOP_CUT_WEIGHT = 10000
-
 # TODO: Make configurable somehow
 REQUIRED_POINTS = {9: 18}
 
@@ -202,7 +207,8 @@ def calc_ranks(
     players = tour.get_players()
     all_round_results = tour.get_round_results()
 
-    player_data = {player_id: PlayerData() for player_id in players}
+    top_cut_round_idx = len(all_round_results) - top_cut_rounds
+    player_data = {player_id: PlayerData(top_cut_round_idx) for player_id in players}
     player_matchups: dict[str, list[str]] = {player_id: [] for player_id in players}
 
     # At the time of the top cut these are frozen as the (ordered) list of
@@ -210,11 +216,6 @@ def calc_ranks(
     top_cut_players: list[str] = []
 
     st_limited_rounds = set(limited_rounds or ())
-
-    def round_weight(round_idx: int) -> int:
-        if round_idx < len(all_round_results) - top_cut_rounds:
-            return 1
-        return TOP_CUT_WEIGHT
 
     def tiebreakers(player_id):
         pd = player_data[player_id]
@@ -233,6 +234,7 @@ def calc_ranks(
             total_opponents = 1
 
         return (
+            -pd.top_cut_points,
             -pd.points,
             -opp_match_win_perc / total_opponents,
             -pd.game_win_percentage,
@@ -262,7 +264,6 @@ def calc_ranks(
             top_cut_players.clear()
             top_cut_players.extend(get_top_cut(rem_players, top_cut_rounds))
 
-        weight = round_weight(round_idx)
         seen_in_round = set()
         for round_result in round_results:
             p1 = round_result.p1
@@ -289,13 +290,14 @@ def calc_ranks(
                 seen_in_round.add(player_id)
 
             if p2 is None:  # Bye
-                player_data[p1].record_match((2, 0, 0), weight=weight)
+                player_data[p1].record_match((2, 0, 0))
                 continue
 
-            player_matchups[p1].append(p2)
-            player_matchups[p2].append(p1)
-            player_data[p1].record_match(games, weight=weight)
-            player_data[p2].record_match(games, reverse=True, weight=weight)
+            if round_idx < top_cut_round_idx:
+                player_matchups[p1].append(p2)
+                player_matchups[p2].append(p1)
+            player_data[p1].record_match(games)
+            player_data[p2].record_match(games, reverse=True)
 
             # Record matchup result
             if round_idx not in st_limited_rounds:
@@ -375,21 +377,19 @@ def calc_ranks(
                 rem_players = [
                     player_id
                     for player_id in top_cut_players
-                    if player_data[player_id].points // TOP_CUT_WEIGHT // 3
-                    == round_idx - round_total + top_cut_rounds
+                    if player_data[player_id].top_cut_points // 3 == round_idx - top_cut_round_idx
                 ]
 
             assert len(rem_players) == 2 ** (round_total - round_idx)
             for index in range(0, len(rem_players), 2):
                 pairings.append((rem_players[index], rem_players[index + 1]))
 
-        weight = round_weight(round_idx)
-
         # Mark matchups first
-        for p1, p2 in pairings:
-            if p2 is not None:
-                player_matchups[p1].append(p2)
-                player_matchups[p2].append(p1)
+        if round_idx < top_cut_round_idx:
+            for p1, p2 in pairings:
+                if p2 is not None:
+                    player_matchups[p1].append(p2)
+                    player_matchups[p2].append(p1)
 
         # To help calculate IDs we'll assume that breakers do not change as a
         # result of this round. Generally relative order of breakers will not change
@@ -410,7 +410,7 @@ def calc_ranks(
                 # We will ID if even the lower player has a guaranteed spot in top
                 # cut.
                 p2_breakers = list(orig_breakers[p2])
-                p2_breakers[0] -= 1  # Give one point for draw
+                p2_breakers[1] -= 1  # Give one point for draw
 
                 worst_rank = 1  # Start at 1 since behind p1
                 for oth_p1, oth_p2 in pairings:
@@ -424,8 +424,8 @@ def calc_ranks(
                                 continue
                         oth_p1_break = list(orig_breakers[oth_p1])
                         oth_p2_break = list(orig_breakers[oth_p2])
-                        oth_p1_break[0] -= outcome[0]
-                        oth_p2_break[0] -= outcome[1]
+                        oth_p1_break[1] -= outcome[0]
+                        oth_p2_break[1] -= outcome[1]
                         outcome_rank = 0
                         if p2_breakers > oth_p1_break:
                             outcome_rank += 1
@@ -442,11 +442,11 @@ def calc_ranks(
 
         for p1, p2 in pairings:
             if p2 is None:
-                player_data[p1].record_match((2, 0, 0), weight=weight)
+                player_data[p1].record_match((2, 0, 0))
                 continue
             if (p1, p2) in intentional_draws:
-                player_data[p1].record_match((0, 0, 0), weight=weight)
-                player_data[p2].record_match((0, 0, 0), weight=weight)
+                player_data[p1].record_match((0, 0, 0))
+                player_data[p2].record_match((0, 0, 0))
                 continue
 
             if round_idx in st_limited_rounds:
@@ -460,8 +460,8 @@ def calc_ranks(
                 winner = 0 if random.random() < matchup_prob else 1
                 games[winner] += 1
 
-            player_data[p1].record_match((games[0], games[1], 0), weight=weight)
-            player_data[p2].record_match((games[1], games[0], 0), weight=weight)
+            player_data[p1].record_match((games[0], games[1], 0))
+            player_data[p2].record_match((games[1], games[0], 0))
 
     if not all_round_results:
         sim_rounds = 0  # Empty tournament?
@@ -504,13 +504,13 @@ def calc_ranks(
     rem_players = sorted(player_data, key=tiebreakers)
     for rank, player_id in enumerate(rem_players):
         pdata = player_data[player_id]
-        _, opp_match_win_perc, _, opp_game_win_perc, _ = tiebreakers(player_id)
+        _, _, opp_match_win_perc, _, opp_game_win_perc, _ = tiebreakers(player_id)
 
         player_output = {
             "rank": rank + 1,
             "record": "-".join(str(x) for x in pdata.match_record),
             "round_pending": player_id in has_round_pending,
-            "points": pdata.points_true,
+            "points": pdata.points,
             "omw": float(-opp_match_win_perc),
             "gw": float(pdata.game_win_percentage),
             "ogw": float(-opp_game_win_perc),

@@ -97,17 +97,22 @@ class MeleeTournament(Tournament):
         for force in (False, True):
             match_results = list(self.page_round_results(rounds[0][0], force=force))
             match_results.extend(
-                self.page_round_results(rounds[self.first_constructed_round][0], force=force)
+                self.page_round_results(
+                    rounds[self.first_constructed_round][0], force=force
+                )
             )
             has_decks = False
             for match_result in match_results:
                 for competitor in match_result["Competitors"]:
                     decks = competitor["Decklists"]
-                    player_decks[str(competitor["TeamId"])] = decks[0] if decks else None
+                    player_decks[str(competitor["TeamId"])] = (
+                        decks[0] if decks else None
+                    )
                     if decks:
                         has_decks = True
                     player_names[str(competitor["TeamId"])] = " and ".join(
-                        player["DisplayName"] for player in competitor["Team"]["Players"]
+                        player["DisplayName"]
+                        for player in competitor["Team"]["Players"]
                     )
                     player_0 = next(iter(competitor["Team"]["Players"]), None)
                     if player_0:

@@ -19,11 +19,50 @@
             flex-direction: column;
         }
 
+        .title-row {
+            display: flex;
+            flex-direction: row;
+            align-items: baseline;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .home-link {
+            font-size: 1.2rem;
+            line-height: 1;
+            text-decoration: none;
+            color: #555;
+        }
+
+        .home-link:hover { color: #1a1a2e; }
+
         h1 {
             font-size: 1.5rem;
             font-weight: 700;
-            margin-bottom: 20px;
             color: #1a1a2e;
+            white-space: nowrap;
+        }
+
+        #page-links {
+            line-height: 1;
+        }
+
+        #page-links a {
+            display: inline-block;
+            margin-right: 8px;
+            padding: 4px 12px;
+            border-radius: 6px;
+            background: white;
+            border: 1px solid #c8d4e8;
+            color: #1e3a5f;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        #page-links a:hover {
+            background: #e8eef7;
         }
 
         .controls {
@@ -58,21 +97,50 @@
 
         input[type="text"]:focus { outline: none; border-color: #1a73e8; }
 
-        .col-toggles {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px 14px;
-            align-items: center;
+        .col-dropdown {
+            position: relative;
         }
+
+        .col-dropdown-btn {
+            padding: 7px 12px;
+            border: 1.5px solid #d0d0d0;
+            border-radius: 6px;
+            background: white;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        .col-dropdown-btn:hover { background: #f5f5f5; }
+
+        .col-dropdown-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            z-index: 100;
+            background: white;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            padding: 10px 14px;
+            min-width: 160px;
+        }
+
+        .col-dropdown-panel.open { display: flex; flex-direction: column; gap: 8px; }
 
         .toggle-label {
             display: flex;
             align-items: center;
-            gap: 4px;
-            font-size: 0.81rem;
-            color: #444;
+            gap: 6px;
+            font-size: 0.84rem;
+            color: #333;
             cursor: pointer;
             user-select: none;
+            white-space: nowrap;
         }
 
         .toggle-label input[type="checkbox"] { cursor: pointer; }
@@ -87,9 +155,6 @@
             font-size: 0.88rem;
         }
 
-        #page-links { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 0.88rem; }
-        #page-links a { color: #1a73e8; text-decoration: none; }
-        #page-links a:hover { text-decoration: underline; }
 
         #status-msg {
             color: #777;
@@ -171,6 +236,7 @@
         td.col-points { text-align: center; font-weight: 700; }
         td.col-tb    { text-align: center; color: #555; font-size: 0.78rem; }
         td.col-range { text-align: center; font-size: 0.78rem; color: #444; }
+        td.col-range.exact { font-weight: 700; }
         td.col-prob  { text-align: center; font-weight: 600; }
         td.col-na    { text-align: center; color: #ccc; background: #fafafa !important; }
 
@@ -186,8 +252,11 @@
     </style>
 </head>
 <body>
-    <h1 id="table-title">Tournament Leaderboard</h1>
-    <div id="page-links"></div>
+    <div class="title-row">
+        <a href="index.html" class="home-link" title="Index">⌂</a>
+        <h1 id="table-title">Tournament Leaderboard</h1>
+        <div id="page-links"></div>
+    </div>
     <div id="status-msg">Loading…</div>
     <div id="error-msg" style="display:none"></div>
 
@@ -197,9 +266,9 @@
             <input type="text" id="filter-input" placeholder="Player name or archetype…">
         </div>
         <div class="divider"></div>
-        <div class="control-group" id="toggle-group" style="display:none">
-            <label class="group-label">Columns:</label>
-            <div class="col-toggles" id="col-toggles"></div>
+        <div class="col-dropdown" id="toggle-group" style="display:none">
+            <button class="col-dropdown-btn" id="col-dropdown-btn">Columns ▾</button>
+            <div class="col-dropdown-panel" id="col-toggles"></div>
         </div>
     </div>
 
@@ -307,9 +376,19 @@
         hasSimData = rows.some(r => r.rank_best != null);
         showArchCol = rows.some(r => r.archetype !== 'unknown');
 
+        // Detect if top_8 is degenerate (every player is 0% or 100%)
+        const top8Col = availProbCols.find(c => c.key === 'top_8');
+        const top8Degenerate = top8Col && rows.every(r => r.top_8 == null || r.top_8 === 0 || r.top_8 === 1);
+
         // Initialize column visibility
         for (const c of EXTRA_TOGGLE_COLS) colVisible[c.key] = c.defaultOn;
-        for (const c of availProbCols)     colVisible[c.key] = c.defaultOn;
+        for (const c of availProbCols) {
+            if (top8Degenerate) {
+                colVisible[c.key] = (c.key === 'top_1' || c.key === 'top_2' || c.key === 'top_4');
+            } else {
+                colVisible[c.key] = c.defaultOn;
+            }
+        }
 
         if (!hasSimData) {
           colVisible['gw'] = true;
@@ -354,8 +433,21 @@
             container.appendChild(lbl);
         }
 
-        document.getElementById('toggle-group').style.display = 'flex';
+        document.getElementById('toggle-group').style.display = 'block';
     }
+
+    document.getElementById('col-dropdown-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        document.getElementById('col-toggles').classList.toggle('open');
+    });
+
+    document.getElementById('col-toggles').addEventListener('click', e => {
+        e.stopPropagation();
+    });
+
+    document.addEventListener('click', () => {
+        document.getElementById('col-toggles').classList.remove('open');
+    });
 
     function probBgColor(p) {
         // white (p=0) → green (p=1)
@@ -479,7 +571,7 @@
             }
             if (colVisible['range'] && hasSimData) {
                 if (row.rank_best != null) {
-                    tr.appendChild(mkTd('col-range', `${row.rank_best} – ${row.rank_worst}`));
+                    tr.appendChild(mkTd(row.rank_best === row.rank_worst ? 'col-range exact' : 'col-range', row.rank_best === row.rank_worst ? `${row.rank_best}` : `${row.rank_best} – ${row.rank_worst}`));
                 } else {
                     tr.appendChild(mkTd('col-na', '—'));
                 }
