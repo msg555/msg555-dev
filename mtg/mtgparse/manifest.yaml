@@ -1,3 +1,18 @@
+spotlight-tmnt:
+  type: melee
+  melee_id: 385921
+  title: "Spotlight: TMNT"
+  format: standard
+  top_cut_rounds: 3
+  default: true
+
+rcturin2026:
+  type: melee
+  melee_id: 392336
+  title: RC Turin 2026
+  format: standard
+  top_cut_rounds: 3
+
 ptlorwyn:
   type: melee
   melee_id: 394299
@@ -5,6 +20,13 @@ ptlorwyn:
   format: standard
   top_cut_rounds: 3
   limited_rounds: [0, 1, 2, 8, 9, 10]
+
+rcmilwaukee2026:
+  type: melee
+  melee_id: 339227
+  title: RC Milwaukee 2026
+  format: standard
+  top_cut_rounds: 3
 
 rcportland2026:
   type: melee
@@ -17,28 +39,5 @@ rcsantiago2026:
   type: melee
   melee_id: 401688
   title: RC Santiago 2026
-  format: standard
-  top_cut_rounds: 3
-
-rcmilwaukee2026:
-  type: melee
-  melee_id: 339227
-  title: RC Milwaukee 2026
-  format: standard
-  top_cut_rounds: 3
-
-spotlight-tmnt:
-  type: melee
-  melee_id: 385921
-  title: "Spotlight: TMNT"
-  format: standard
-  top_cut_rounds: 3
-  active: true
-  default: true
-
-rcturin2026:
-  type: melee
-  melee_id: 392336
-  title: RC Turin 2026
   format: standard
   top_cut_rounds: 3
