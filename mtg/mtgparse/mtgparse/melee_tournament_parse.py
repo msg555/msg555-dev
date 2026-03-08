@@ -1,5 +1,6 @@
 import json
 import logging
+import urllib.parse
 from typing import Optional
 
 from bs4 import BeautifulSoup
@@ -83,6 +84,7 @@ class MeleeTournament(Tournament):
 
         player_decks = {}
         player_names = {}
+        player_urls = {}
         rc = 0
         for match_result in self.page_round_results(rounds[0][0]):
             for competitor in match_result["Competitors"]:
@@ -92,6 +94,12 @@ class MeleeTournament(Tournament):
                 player_names[str(competitor["TeamId"])] = " and ".join(
                     player["DisplayName"] for player in competitor["Team"]["Players"]
                 )
+                player_0 = next(iter(competitor["Team"]["Players"]), None)
+                if player_0:
+                    player_urls[str(competitor["TeamId"])] = (
+                        "https://melee.gg/Profile/Index/"
+                        + urllib.parse.quote(player_0["Username"])
+                    )
 
         for player_id, deck_data in player_decks.items():
             if deck_data:
@@ -103,6 +111,7 @@ class MeleeTournament(Tournament):
                 player_id,
                 player_names[player_id],
                 deck,
+                url=player_urls.get(player_id),
             )
 
         return self.players
@@ -174,9 +183,6 @@ class MeleeTournament(Tournament):
         missing_results = False
         match_results: list[MatchResult] = []
         for match_result in self.page_round_results(round_id, force=force):
-            if not match_result["HasResult"]:
-                missing_results = True
-                continue
             if match_result.get("LossReasonDescription") == "All Players Absent":
                 continue
 
@@ -193,6 +199,18 @@ class MeleeTournament(Tournament):
 
             if len(comps) != 2:
                 raise ValueError("Got unexpected player count")
+
+            if not match_result["HasResult"]:
+                missing_results = True
+                match_results.append(
+                    MatchResult(
+                        str(comps[0]["TeamId"]),
+                        str(comps[1]["TeamId"]),
+                        (0, 0, 0),
+                        complete=False,
+                    )
+                )
+                continue
 
             games = (
                 comps[0]["GameWins"] or 0,
@@ -227,8 +245,6 @@ class MeleeTournament(Tournament):
             if not force:
                 return self.get_single_round_result(round_id, force=True)
 
-        if missing_results:
-            return []
         return match_results
 
     def get_round_results(self) -> list[list[MatchResult]]:

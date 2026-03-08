@@ -13,7 +13,7 @@ class Card:
 class Deck:
     main_deck: list[Card]
     side_board: list[Card]
-    archetype: Optional[str] = None
+    archetype: str = "unknown"
     author: Optional[str] = None
     url: Optional[str] = None
 
@@ -30,6 +30,7 @@ class Player:
     ident: str
     name: str
     deck: Deck
+    url: Optional[str] = None
 
 
 @dataclasses.dataclass
@@ -43,6 +44,7 @@ class MatchResult:
     p1: str
     p2: Optional[str]
     games: tuple[int, int, int]
+    complete: bool = True
 
 
 class Tournament(abc.ABC):

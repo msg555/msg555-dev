@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Leaderboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { height: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f2f5;
+            color: #222;
+            padding: 24px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #1a1a2e;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 10px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .divider { width: 1px; height: 24px; background: #e0e0e0; }
+
+        .group-label { font-weight: 600; font-size: 0.85rem; color: #555; white-space: nowrap; }
+
+        input[type="text"] {
+            padding: 7px 12px;
+            border: 1.5px solid #d0d0d0;
+            border-radius: 6px;
+            font-size: 0.88rem;
+            width: 220px;
+        }
+
+        input[type="text"]:focus { outline: none; border-color: #1a73e8; }
+
+        .col-toggles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            align-items: center;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.81rem;
+            color: #444;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .toggle-label input[type="checkbox"] { cursor: pointer; }
+
+        #error-msg {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+            font-size: 0.88rem;
+        }
+
+        #status-msg {
+            color: #777;
+            font-size: 0.88rem;
+            padding: 4px 4px 12px;
+        }
+
+        #table-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        #table-container {
+            overflow: auto;
+            flex: 1;
+            min-height: 0;
+            max-width: calc(100vw - 48px);
+        }
+
+        .lb-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            white-space: nowrap;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            font-size: 0.80rem;
+        }
+
+        .lb-table th, .lb-table td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #e8e8e8;
+            border-right: 1px solid #e8e8e8;
+        }
+
+        .lb-table thead th {
+            background: #1e3a5f;
+            color: white;
+            font-weight: 600;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .lb-table thead th:hover { background: #274d7a; }
+        .lb-table thead th.sorted-asc::after  { content: ' ▲'; font-size: 0.65em; opacity: 0.85; }
+        .lb-table thead th.sorted-desc::after { content: ' ▼'; font-size: 0.65em; opacity: 0.85; }
+
+        /* Sticky player column */
+        .lb-table th.col-player,
+        .lb-table td.col-player {
+            position: sticky;
+            left: 0;
+            z-index: 1;
+        }
+        .lb-table thead th.col-player { z-index: 3; border-right: 2px solid #3d5f8a; }
+        .lb-table td.col-player {
+            background: white;
+            font-weight: 600;
+            min-width: 160px;
+            text-align: left;
+            border-right: 2px solid #c8c8c8;
+        }
+        .lb-table td.col-player a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .lb-table tbody tr:hover td { background: #f0f7ff !important; }
+
+        td.col-rank  { text-align: center; color: #888; font-weight: 600; width: 40px; }
+        td.col-arch  { text-align: left; color: #444; min-width: 120px; }
+        td.col-record { text-align: center; font-weight: 700; }
+        td.col-record.pending { font-weight: normal; font-style: italic; }
+        td.col-points { text-align: center; font-weight: 700; }
+        td.col-tb    { text-align: center; color: #555; font-size: 0.78rem; }
+        td.col-range { text-align: center; font-size: 0.78rem; color: #444; }
+        td.col-prob  { text-align: center; font-weight: 600; }
+        td.col-na    { text-align: center; color: #ccc; background: #fafafa !important; }
+
+        /* Round corners */
+        .lb-table thead th:first-child { border-top-left-radius: 10px; }
+        .lb-table thead th:last-child  { border-top-right-radius: 10px; }
+        .lb-table tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
+        .lb-table tbody tr:last-child td:last-child  { border-bottom-right-radius: 10px; }
+    </style>
+</head>
+<body>
+    <h1 id="table-title">Tournament Leaderboard</h1>
+    <div id="page-links"></div>
+    <div id="status-msg">Loading…</div>
+    <div id="error-msg" style="display:none"></div>
+
+    <div class="controls" id="controls" style="display:none">
+        <div class="control-group">
+            <label class="group-label" for="filter-input">Filter:</label>
+            <input type="text" id="filter-input" placeholder="Player name or archetype…">
+        </div>
+        <div class="divider"></div>
+        <div class="control-group" id="toggle-group" style="display:none">
+            <label class="group-label">Columns:</label>
+            <div class="col-toggles" id="col-toggles"></div>
+        </div>
+    </div>
+
+    <div id="table-area" style="display:none">
+        <div id="table-container"></div>
+        <div id="round-pending-note" style="display:none; margin-top: 0.5em; font-size: 0.8em; color: #666;">* player has pending round results</div>
+    </div>
+    <footer style="margin-top: 1.5em; font-size: 0.78rem; color: #888;">
+      Predicted probabilities and rank range come from Monte Carlo simulation results. They do not represent true probabilities or the real theoretical rank range.
+    </footer>
+
+    <script>
+
+    const params = new URLSearchParams(window.location.search);
+    const tournamentId = params.get('id');
+
+    const archLink = document.createElement('a');
+    archLink.href = 'arch_matchup.html' + (tournamentId ? `?id=${encodeURIComponent(tournamentId)}` : '');
+    archLink.textContent = 'Archetype Matchups';
+    document.getElementById('page-links').appendChild(archLink);
+
+    function safePath(id) {
+        return id && /^[a-zA-Z0-9._-]+$/.test(id) ? id : 'default';
+    }
+    const tid = safePath(tournamentId);
+
+    Promise.all([
+        fetch(`tournaments/${tid}.json`).then(r => {
+            if (!r.ok) throw new Error('Could not load tournament data');
+            return r.json();
+        }),
+        fetch(`tournaments/ranks/${tid}.json`).then(r => {
+            if (!r.ok) throw new Error('Could not load ranks data');
+            return r.json();
+        }),
+    ])
+    .then(([tournament, ranks]) => init(tournament, ranks))
+    .catch(err => showError(err.message));
+
+    function showError(msg) {
+        document.getElementById('error-msg').textContent = msg;
+        document.getElementById('error-msg').style.display = 'block';
+        document.getElementById('status-msg').style.display = 'none';
+    }
+
+    // All possible probability columns, in display order
+    const ALL_PROB_COLS = [
+        { key: 'day_2',   label: 'Day 2',   defaultOn: true  },
+        { key: 'top_1',   label: 'Top 1',   defaultOn: false },
+        { key: 'top_2',   label: 'Top 2',   defaultOn: false },
+        { key: 'top_4',   label: 'Top 4',   defaultOn: false },
+        { key: 'top_8',   label: 'Top 8',   defaultOn: true  },
+        { key: 'top_16',  label: 'Top 16',  defaultOn: true  },
+        { key: 'top_32',  label: 'Top 32',  defaultOn: true  },
+        { key: 'top_64',  label: 'Top 64',  defaultOn: true  },
+        { key: 'top_128', label: 'Top 128', defaultOn: false },
+        { key: 'top_256', label: 'Top 256', defaultOn: false },
+    ];
+
+    // Optional non-probability columns (always present in data, but toggleable)
+    const EXTRA_TOGGLE_COLS = [
+        { key: 'omw',   label: 'OMW%',       defaultOn: true  },
+        { key: 'gw',    label: 'GW%',        defaultOn: false },
+        { key: 'ogw',   label: 'OGW%',       defaultOn: false },
+        { key: 'range', label: 'Rank Range', defaultOn: true  },
+    ];
+
+    let sortKey = 'rank';
+    let sortDir = 1;   // 1 = ascending, -1 = descending
+    let filterText = '';
+    let colVisible = {};
+    let rows = [];
+    let availProbCols = [];
+    let hasSimData = false;
+    let showArchCol = false;
+
+    function init(tournament, ranks) {
+        const players = tournament.players || {};
+        const title = tournament.title ? `${tournament.title} — Leaderboard` : 'Tournament Leaderboard';
+        document.title = title;
+        document.getElementById('table-title').textContent = title;
+
+        rows = Object.entries(ranks).map(([pid, r]) => {
+            const player = players[pid];
+            return {
+                pid,
+                name:       player ? player.name : pid,
+                player_url: player ? player.url : null,
+                archetype:  player?.deck?.archetype || 'unknown',
+                ...r,
+            };
+        });
+
+        // Detect which prob cols actually have data
+        availProbCols = ALL_PROB_COLS.filter(c => rows.some(row => row[c.key] != null));
+        hasSimData = rows.some(r => r.rank_best != null);
+        showArchCol = rows.some(r => r.archetype !== 'unknown');
+
+        // Initialize column visibility
+        for (const c of EXTRA_TOGGLE_COLS) colVisible[c.key] = c.defaultOn;
+        for (const c of availProbCols)     colVisible[c.key] = c.defaultOn;
+
+        buildToggles();
+
+        document.getElementById('filter-input').addEventListener('input', e => {
+            filterText = e.target.value.toLowerCase();
+            renderTable();
+        });
+
+        renderTable();
+
+        document.getElementById('status-msg').hidden = true;
+        document.getElementById('controls').style.display = 'flex';
+        document.getElementById('table-area').style.display = 'flex';
+    }
+
+    function buildToggles() {
+        const container = document.getElementById('col-toggles');
+        container.innerHTML = '';
+
+        // Extra cols (omw/gw/ogw always exist; range only if sim data)
+        const extraCols = EXTRA_TOGGLE_COLS.filter(c => c.key !== 'range' || hasSimData);
+        const allToggle = [...extraCols, ...availProbCols];
+        if (allToggle.length === 0) return;
+
+        for (const col of allToggle) {
+            const lbl = document.createElement('label');
+            lbl.className = 'toggle-label';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !!colVisible[col.key];
+            cb.addEventListener('change', () => {
+                colVisible[col.key] = cb.checked;
+                renderTable();
+            });
+            lbl.appendChild(cb);
+            lbl.appendChild(document.createTextNode(col.label));
+            container.appendChild(lbl);
+        }
+
+        document.getElementById('toggle-group').style.display = 'flex';
+    }
+
+    function probBgColor(p) {
+        // white (p=0) → green (p=1)
+        const r = Math.round(255 + (80  - 255) * p);
+        const g = Math.round(255 + (185 - 255) * p);
+        const b = Math.round(255 + (80  - 255) * p);
+        return `rgb(${r},${g},${b})`;
+    }
+
+    function probTextColor(p) {
+        return p > 0.55 ? '#1a4a1a' : '#333';
+    }
+
+    function fmtPct(v)  { return v == null ? null : (v * 100).toFixed(1) + '%'; }
+    function fmtTb(v)   { return v == null ? null : (v * 100).toFixed(2) + '%'; }
+
+    function setSort(key) {
+        if (sortKey === key) {
+            sortDir *= -1;
+        } else {
+            sortKey = key;
+            // Text columns sort ascending by default; numeric descending (higher = better)
+            sortDir = (key === 'name' || key === 'archetype') ? 1
+                    : (key === 'rank') ? 1
+                    : -1;
+        }
+        renderTable();
+    }
+
+    function mkTh(label, key, cls) {
+        const th = document.createElement('th');
+        th.textContent = label;
+        if (cls) th.className = cls;
+        if (sortKey === key) th.classList.add(sortDir === 1 ? 'sorted-asc' : 'sorted-desc');
+        th.addEventListener('click', () => setSort(key));
+        return th;
+    }
+
+    function mkTd(cls, content, style, url) {
+        const td = document.createElement('td');
+        td.className = cls;
+        if (content != null) {
+            if (url != null) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.textContent = content;
+                td.appendChild(a);
+            } else {
+                td.textContent = content;
+            }
+        }
+        if (style) Object.assign(td.style, style);
+        return td;
+    }
+
+    function renderTable() {
+        // Filter
+        const visible = rows.filter(row => {
+            if (!filterText) return true;
+            return row.name.toLowerCase().includes(filterText) ||
+                   row.archetype.toLowerCase().includes(filterText);
+        });
+
+        // Sort
+        visible.sort((a, b) => {
+            let av = sortKey === 'range' ? a.rank_best : a[sortKey];
+            let bv = sortKey === 'range' ? b.rank_best : b[sortKey];
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            if (typeof av === 'string') return sortDir * av.localeCompare(bv);
+            return sortDir * (av - bv);
+        });
+
+        const table = document.createElement('table');
+        table.className = 'lb-table';
+
+        // ── Header ────────────────────────────────────────────────────────────
+        const thead = document.createElement('thead');
+        const hrow  = document.createElement('tr');
+
+        hrow.appendChild(mkTh('#', 'rank'));
+        hrow.appendChild(mkTh('Player', 'name', 'col-player'));
+        if (showArchCol) hrow.appendChild(mkTh('Archetype', 'archetype'));
+        hrow.appendChild(mkTh('Record', 'record'));
+        hrow.appendChild(mkTh('Pts', 'points'));
+        if (colVisible['omw'])   hrow.appendChild(mkTh('OMW%', 'omw'));
+        if (colVisible['gw'])    hrow.appendChild(mkTh('GW%', 'gw'));
+        if (colVisible['ogw'])   hrow.appendChild(mkTh('OGW%', 'ogw'));
+        if (colVisible['range'] && hasSimData) hrow.appendChild(mkTh('Rank Range', 'range'));
+        for (const col of availProbCols) {
+            if (colVisible[col.key]) hrow.appendChild(mkTh(col.label, col.key));
+        }
+
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        // ── Body ──────────────────────────────────────────────────────────────
+        const tbody = document.createElement('tbody');
+
+        for (const row of visible) {
+            const tr = document.createElement('tr');
+
+            tr.appendChild(mkTd('col-rank',   row.rank));
+            tr.appendChild(mkTd('col-player', row.name, null, row.player_url));
+            if (showArchCol) tr.appendChild(mkTd('col-arch',   row.archetype));
+            tr.appendChild(mkTd(row.round_pending ? 'col-record pending' : 'col-record', row.round_pending ? `${row.record}*` : row.record));
+            tr.appendChild(mkTd('col-points', row.points));
+
+            if (colVisible['omw']) {
+                const v = fmtTb(row.omw);
+                tr.appendChild(v ? mkTd('col-tb', v) : mkTd('col-na', '—'));
+            }
+            if (colVisible['gw']) {
+                const v = fmtTb(row.gw);
+                tr.appendChild(v ? mkTd('col-tb', v) : mkTd('col-na', '—'));
+            }
+            if (colVisible['ogw']) {
+                const v = fmtTb(row.ogw);
+                tr.appendChild(v ? mkTd('col-tb', v) : mkTd('col-na', '—'));
+            }
+            if (colVisible['range'] && hasSimData) {
+                if (row.rank_best != null) {
+                    tr.appendChild(mkTd('col-range', `${row.rank_best} – ${row.rank_worst}`));
+                } else {
+                    tr.appendChild(mkTd('col-na', '—'));
+                }
+            }
+            for (const col of availProbCols) {
+                if (!colVisible[col.key]) continue;
+                const p = row[col.key];
+                if (p == null) {
+                    tr.appendChild(mkTd('col-na', '—'));
+                } else {
+                    tr.appendChild(mkTd('col-prob', fmtPct(p), {
+                        backgroundColor: probBgColor(p),
+                        color: probTextColor(p),
+                    }));
+                }
+            }
+
+            tbody.appendChild(tr);
+        }
+
+        table.appendChild(tbody);
+
+        const container = document.getElementById('table-container');
+        container.innerHTML = '';
+        container.appendChild(table);
+
+        const hasPending = visible.some(r => r.round_pending);
+        document.getElementById('round-pending-note').style.display = hasPending ? '' : 'none';
+    }
+
+    </script>
+</body>
+</html>

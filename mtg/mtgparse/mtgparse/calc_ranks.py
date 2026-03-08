@@ -6,11 +6,14 @@ See https://mtg.fandom.com/wiki/Tiebreaker for documentation on how to compute t
 
 import argparse
 import copy
+import json
 import logging
 import random
+import sys
 from fractions import Fraction
 from typing import Sequence
 
+import pandas
 import tqdm
 from scipy.stats import beta
 
@@ -63,6 +66,17 @@ def parse_args():
         type=int,
         default=0,
         help="Number of rounds in simulation",
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Output file path. Defaults to stdout",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("csv", "json"),
+        default="csv",
+        help="Output format",
     )
     return parser.parse_args()
 
@@ -126,8 +140,14 @@ class PlayerStats:
         self.wins = 0
         self.top_p2 = [0 for _ in range(self.MAX_POWER)]
         self.day_2 = 0
+        self.rank_best = None
+        self.rank_worst = None
 
     def record_rank(self, rank: int, points: int) -> None:
+        if self.rank_best is None or rank < self.rank_best:
+            self.rank_best = rank
+        if self.rank_worst is None or self.rank_worst < rank:
+            self.rank_worst = rank
         for ind in range(self.MAX_POWER):
             if rank < 2**ind:
                 self.top_p2[ind] += 1
@@ -165,7 +185,7 @@ TOP_CUT_WEIGHT = 10000
 REQUIRED_POINTS = {9: 18}
 
 
-def main():
+def main() -> int:
     logging.basicConfig(level=logging.INFO)
     args = parse_args()
 
@@ -174,11 +194,11 @@ def main():
     all_round_results = tour.get_round_results()
 
     player_data = {player_id: PlayerData() for player_id in players}
-    player_matchups = {player_id: [] for player_id in players}
+    player_matchups: dict[str, list[str]] = {player_id: [] for player_id in players}
 
     # At the time of the top cut these are frozen as the (ordered) list of
     # players in the top cut.
-    top_cut_players = []
+    top_cut_players: list[str] = []
 
     def round_weight(round_idx: int) -> int:
         if round_idx < len(all_round_results) - args.top_cut:
@@ -209,8 +229,9 @@ def main():
             player_id,
         )
 
-    arch_matchup = {}
+    arch_matchup: dict[str, dict[str, tuple[int, int, int]]] = {}
     round_total = len(all_round_results)
+    has_round_pending: set[str] = set()
     for round_idx, round_results in enumerate(all_round_results):
         if args.rounds and args.rounds <= round_idx:
             break
@@ -236,6 +257,12 @@ def main():
             p1 = round_result.p1
             p2 = round_result.p2
             games = round_result.games
+
+            if not round_result.complete:
+                has_round_pending.add(p1)
+                if p2:
+                    has_round_pending.add(p2)
+                continue
 
             for player_id in (p1, p2):
                 if player_id is None:
@@ -271,9 +298,9 @@ def main():
                 (games[1], games[0], games[2]),
             )
 
-    arch_matchup_probs = {}
+    arch_matchup_probs: dict[str, dict[str, float]] = {}
 
-    def simulate_round(round_idx):
+    def simulate_round(round_idx, partial: bool = False):
         # only include players who haven't missed a round (assumed to have dropped)
         rem_players = [
             player_id
@@ -283,7 +310,14 @@ def main():
         ]
 
         pairings = []
-        if round_idx < round_total - args.top_cut:
+        if partial:
+            # If round results are partial we should already have all pairings with
+            # some results reported. Already reported results should be accounted
+            # for so we just need to simulate unreported results.
+            for match_result in all_round_results[round_idx]:
+                if not match_result.complete:
+                    pairings.append((match_result.p1, match_result.p2))
+        elif round_idx < round_total - args.top_cut:
             if round_idx < round_total - args.top_cut - 1:
                 # Pair randomly among players with the same number of points.
                 # We reuse the power pairing logic but just order players by their
@@ -351,7 +385,7 @@ def main():
         # should be a relatively accurate assumption.
 
         intentional_draws = set()
-        if round_idx == round_total - args.top_cut - 1:
+        if not partial and round_idx == round_total - args.top_cut - 1:
             cut_off_rank = 2**args.top_cut
 
             orig_breakers = {
@@ -414,6 +448,7 @@ def main():
             player_data[p1].record_match((games[0], games[1], 0), weight=weight)
             player_data[p2].record_match((games[1], games[0], 0), weight=weight)
 
+    player_stats = {}
     if args.sim_rounds:
         player_stats = {player_id: PlayerStats() for player_id in players}
 
@@ -430,6 +465,8 @@ def main():
             for round_idx, round_results in enumerate(all_round_results):
                 if not round_results:
                     simulate_round(round_idx)
+                elif any(not result.complete for result in round_results):
+                    simulate_round(round_idx, True)
 
             top_players = sorted(players, key=tiebreakers)
             for rank, player_id in enumerate(top_players):
@@ -439,26 +476,57 @@ def main():
         player_matchups = copy.deepcopy(init_player_matchups)
         top_cut_players = copy.deepcopy(init_top_cut_players)
         top_players = sorted(players, key=tiebreakers)
-        print(
-            f"Name|Deck|Current Rank|Current Points|Day 2 %|Win %|{'|'.join('Top ' + str(2 ** ind) + ' %' for ind in range(1, PlayerStats.MAX_POWER))}"
-        )
-        for rank, player_id in enumerate(top_players):
+
+    output_data = {}
+
+    rem_players = sorted(player_data, key=tiebreakers)
+    for rank, player_id in enumerate(rem_players):
+        pdata = player_data[player_id]
+        _, opp_match_win_perc, _, opp_game_win_perc, _ = tiebreakers(player_id)
+
+        player_output = {
+            "rank": rank + 1,
+            "record": "-".join(str(x) for x in pdata.match_record),
+            "round_pending": player_id in has_round_pending,
+            "points": pdata.points,
+            "omw": float(-opp_match_win_perc),
+            "gw": float(pdata.game_win_percentage),
+            "ogw": float(-opp_game_win_perc),
+        }
+
+        if player_stats:
             stats = player_stats[player_id]
-            print(
-                f"{players[player_id].name}|{players[player_id].deck.archetype}|{rank + 1}|{player_data[player_id].points}|{stats.day_2 / args.sim_rounds * 100:.2f}|{'|'.join(f'{x / args.sim_rounds * 100:.2f}' for x in stats.top_p2)}"
+            player_output["rank_best"] = stats.rank_best + 1
+            player_output["rank_worst"] = stats.rank_worst + 1
+            player_output["day_2"] = stats.day_2 / args.sim_rounds
+            player_output.update(
+                {
+                    f"top_{2 ** ind}": stats.top_p2[ind] / args.sim_rounds
+                    for ind in range(0, PlayerStats.MAX_POWER)
+                }
             )
 
+        output_data[player_id] = player_output
+
+    if args.format == "csv":
+        df = pandas.DataFrame(
+            [
+                {"player": player_id} | player_output
+                for player_id, player_output in output_data.items()
+            ]
+        )
+        df.to_csv(args.output or sys.stdout, index=False, sep=",")
+    elif args.format == "json":
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as fout:
+                json.dump(output_data, fout)
+        else:
+            json.dump(output_data, sys.stdout)
     else:
-        print("Name|Deck|Rank|Points|OMW%|GW%|OGW%")
-        rem_players = sorted(player_data, key=tiebreakers)
-        for rank, player_id in enumerate(rem_players):
-            pinfo = players[player_id]
-            pdata = player_data[player_id]
-            _, opp_match_win_perc, _, opp_game_win_perc, _ = tiebreakers(player_id)
-            print(
-                f"{pinfo.name}|{pinfo.deck.archetype}|{rank + 1}|{pdata.points}|{-opp_match_win_perc * 100:.2f}|{pdata.game_win_percentage * 100:.2f}|{-opp_game_win_perc * 100:.2f}"
-            )
+        raise ValueError("Unknown output format")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

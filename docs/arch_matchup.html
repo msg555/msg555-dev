@@ -234,6 +234,7 @@
 </head>
 <body>
     <h1 id="table-title">Archetype Matchup Table</h1>
+    <div id="page-links"></div>
 
     <div id="status-msg"></div>
     <div id="tooltip"></div>
@@ -261,6 +262,11 @@
 
     const params = new URLSearchParams(window.location.search);
     const tournamentId = params.get('id');
+
+    const lbLink = document.createElement('a');
+    lbLink.href = 'leaderboard.html' + (tournamentId ? `?id=${encodeURIComponent(tournamentId)}` : '');
+    lbLink.textContent = 'Leaderboard';
+    document.getElementById('page-links').appendChild(lbLink);
 
     let dataPath = "tournaments/default.json";
     if (tournamentId && /^[a-zA-Z0-9-]+$/.test(tournamentId)) {
