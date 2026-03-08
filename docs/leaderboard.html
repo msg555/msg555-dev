@@ -575,7 +575,7 @@
             }
             if (colVisible['range'] && hasSimData) {
                 if (row.rank_best != null) {
-                    tr.appendChild(mkTd(row.rank_best === row.rank_worst ? 'col-range exact' : 'col-range', row.rank_best === row.rank_worst ? `${row.rank_best}` : `${row.rank_best} – ${row.rank_worst}`));
+                    tr.appendChild(mkTd(row.rank_best === row.rank_worst ? 'col-range exact' : 'col-range', row.rank_best === row.rank_worst ? `${row.rank_best}` : `${row.rank_best}–${row.rank_worst}`));
                 } else {
                     tr.appendChild(mkTd('col-na', '—'));
                 }
