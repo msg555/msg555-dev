@@ -112,12 +112,16 @@ class PlayerData:
         self.match_record = zip_add(self.match_record, match)
 
     @property
+    def points_true(self) -> int:
+        return self.points // TOP_CUT_WEIGHT + self.points % TOP_CUT_WEIGHT
+
+    @property
     def match_win_percentage(self) -> Fraction:
         if not self.rounds:
             return Fraction(1, 2)
         return max(
             self.MIN_PERCENTAGE,
-            Fraction(self.points, 3 * self.rounds),
+            Fraction(self.points_true, 3 * self.rounds),
         )
 
     @property
@@ -488,7 +492,7 @@ def main() -> int:
             "rank": rank + 1,
             "record": "-".join(str(x) for x in pdata.match_record),
             "round_pending": player_id in has_round_pending,
-            "points": pdata.points,
+            "points": pdata.points_true,
             "omw": float(-opp_match_win_perc),
             "gw": float(pdata.game_win_percentage),
             "ogw": float(-opp_game_win_perc),

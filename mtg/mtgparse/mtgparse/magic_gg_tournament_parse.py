@@ -15,10 +15,10 @@ def _get_card_from_line(line: str) -> Card:
     return Card(parts[1], int(parts[0]))
 
 
-class NewsTournament(Tournament):
+class MagicGGTournament(Tournament):
     def __init__(self, event_name: str) -> None:
         self.event_name = event_name
-        self.decklist_buckets = ["a-m", "n-z"]  # ["a-e", "f-l", "m-r", "s-z"]
+        self.decklist_buckets = ["a-e", "f-l", "m-r", "s-z"]
         self.format_name = "standard"
         self.rounds = [4, 5, 6, 7, 8, 12, 13, 14, 15, 16]
 
@@ -34,7 +34,7 @@ class NewsTournament(Tournament):
             url = f"https://magic.gg/decklists/{self.event_name}-{self.format_name}-decklists-{bucket}"
             soup = BeautifulSoup(
                 cached_request(
-                    "deck-{self.event_name}-{self.format_name}-{bucket}.html",
+                    f"deck-{self.event_name}-{self.format_name}-{bucket}.html",
                     "get",
                     url,
                 ),
@@ -58,6 +58,7 @@ class NewsTournament(Tournament):
                 ]
 
                 ident = str(deck_data.get("deck-title")).lower()
+                print(ident)
                 deck = Deck(
                     main_deck,
                     side_board,
@@ -92,11 +93,11 @@ class NewsTournament(Tournament):
 
         best = max(
             max(
-                (edit_ratio(norm_name_a, player_name), player_name)
+                (edit_ratio(norm_name_a, player_name.lower()), player_name)
                 for player_name in players
             ),
             max(
-                (edit_ratio(norm_name_b, player_name), player_name)
+                (edit_ratio(norm_name_b, player_name.lower()), player_name)
                 for player_name in players
             ),
         )

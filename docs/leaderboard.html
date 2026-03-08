@@ -156,7 +156,6 @@
         }
         .lb-table td.col-player a {
             color: inherit;
-            text-decoration: none;
         }
 
         .lb-table tbody tr:hover td { background: #f0f7ff !important; }
@@ -170,6 +169,10 @@
         td.col-range { text-align: center; font-size: 0.78rem; color: #444; }
         td.col-prob  { text-align: center; font-weight: 600; }
         td.col-na    { text-align: center; color: #ccc; background: #fafafa !important; }
+
+        .lb-table td.col-arch a {
+            color: inherit;
+        }
 
         /* Round corners */
         .lb-table thead th:first-child { border-top-left-radius: 10px; }
@@ -282,6 +285,7 @@
                 name:       player ? player.name : pid,
                 player_url: player ? player.url : null,
                 archetype:  player?.deck?.archetype || 'unknown',
+                deck_url:   player?.deck?.url || null,
                 ...r,
             };
         });
@@ -294,6 +298,11 @@
         // Initialize column visibility
         for (const c of EXTRA_TOGGLE_COLS) colVisible[c.key] = c.defaultOn;
         for (const c of availProbCols)     colVisible[c.key] = c.defaultOn;
+
+        if (!hasSimData) {
+          colVisible['gw'] = true;
+          colVisible['ogw'] = true;
+        }
 
         buildToggles();
 
@@ -440,7 +449,7 @@
 
             tr.appendChild(mkTd('col-rank',   row.rank));
             tr.appendChild(mkTd('col-player', row.name, null, row.player_url));
-            if (showArchCol) tr.appendChild(mkTd('col-arch',   row.archetype));
+            if (showArchCol) tr.appendChild(mkTd('col-arch',   row.archetype, null, row.deck_url));
             tr.appendChild(mkTd(row.round_pending ? 'col-record pending' : 'col-record', row.round_pending ? `${row.record}*` : row.record));
             tr.appendChild(mkTd('col-points', row.points));
 

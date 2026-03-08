@@ -8,8 +8,8 @@ import sys
 
 from mtgparse.data_model import Tournament
 from mtgparse.json_tournament import JsonTournament
+from mtgparse.magic_gg_tournament_parse import MagicGGTournament
 from mtgparse.melee_tournament_parse import MeleeTournament
-from mtgparse.news_parse import NewsTournament
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def main() -> int:
 
     tour: Tournament
     if args.magic_gg_event:
-        tour = NewsTournament(args.magic_gg_event)
+        tour = MagicGGTournament(args.magic_gg_event)
     elif args.melee_id:
         tour = MeleeTournament(args.melee_id)
     else:
