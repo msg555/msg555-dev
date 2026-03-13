@@ -1,5 +1,6 @@
 import abc
 import dataclasses
+from datetime import datetime
 from typing import Optional
 
 
@@ -48,6 +49,9 @@ class MatchResult:
 
 
 class Tournament(abc.ABC):
+    def get_start_date(self) -> Optional[datetime]:
+        return None
+
     @abc.abstractmethod
     def get_players(self) -> dict[str, Player]:
         pass

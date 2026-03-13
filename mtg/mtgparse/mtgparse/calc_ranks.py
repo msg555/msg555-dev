@@ -377,7 +377,8 @@ def calc_ranks(
                 rem_players = [
                     player_id
                     for player_id in top_cut_players
-                    if player_data[player_id].top_cut_points // 3 == round_idx - top_cut_round_idx
+                    if player_data[player_id].top_cut_points // 3
+                    == round_idx - top_cut_round_idx
                 ]
 
             assert len(rem_players) == 2 ** (round_total - round_idx)

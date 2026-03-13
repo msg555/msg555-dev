@@ -61,14 +61,7 @@
 
         .tourn-table tbody tr:hover td { background: #f0f7ff; }
 
-        .tourn-table td.col-title {
-            font-weight: 600;
-            border-left: 4px solid transparent;
-        }
-
-        .tourn-table tr.active td.col-title {
-            border-left-color: #1a73e8;
-        }
+        .tourn-table td.col-title { font-weight: 600; }
 
         .badge {
             font-size: 0.70rem;
@@ -106,33 +99,76 @@
 <body>
     <h1>MTG Tournaments</h1>
 
+{# Pre-pass: classify each tournament #}
+{% set ns = namespace(has_active=false, has_upcoming=false, has_past=false) %}
+{% for id, meta in tournaments %}
+    {% if id not in has_any_data %}
+        {% set ns.has_upcoming = true %}
+    {% elif meta.active %}
+        {% set ns.has_active = true %}
+    {% else %}
+        {% set ns.has_past = true %}
+    {% endif %}
+{% endfor %}
+
+{# Macro to render a table of tournaments filtered by a category #}
+{% macro tourn_table(category) %}
+    <table class="tourn-table">
+        <thead>
+            <tr>
+                <th>Tournament</th>
+                <th>Format</th>
+                {% if category != 'upcoming' %}
+                <th>Leaderboard</th>
+                <th>Matchups</th>
+                <th>Deck Clustering</th>
+                {% endif %}
+                <th>Data Source</th>
+                <th>Start Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for id, meta in tournaments %}
+            {% if (category == 'upcoming' and id not in has_any_data)
+               or (category == 'active'   and id in has_any_data and meta.active)
+               or (category == 'past'     and id in has_any_data and not meta.active) %}
+            <tr>
+                <td class="col-title">{{ meta.title }}</td>
+                <td><span class="badge">{{ meta.format }}</span></td>
+                {% if category != 'upcoming' %}
+                <td>{% if id in has_any_data %}<a href="leaderboard.html?id={{ id }}">Leaderboard</a>{% endif %}</td>
+                <td>{% if id in has_any_data %}<a href="arch_matchup.html?id={{ id }}">Matchups</a>{% endif %}</td>
+                <td>{% if id in has_embeddings %}<a href="embeddings-{{ id }}.html">Deck Clustering</a>{% endif %}</td>
+                {% endif %}
+                <td>{% if meta.get_url() %}<a href="{{ meta.get_url() }}" target="_blank" rel="noopener noreferrer">Data Source</a>{% endif %}</td>
+                <td><time class="local-date" datetime="{{ meta.start_date.isoformat() }}">{{ meta.start_date.strftime('%Y-%m-%d') }}</time></td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+{% endmacro %}
+
+    {% if ns.has_active %}
     <section>
-        <h2>Tournaments</h2>
-        <table class="tourn-table">
-            <thead>
-                <tr>
-                    <th>Tournament</th>
-                    <th>Format</th>
-                    <th>Leaderboard</th>
-                    <th>Matchups</th>
-                    <th>Deck Clustering</th>
-                    <th>Data Source</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for id, meta in tournaments %}
-                <tr{% if meta.active %} class="active"{% endif %}>
-                    <td class="col-title">{{ meta.title }}</td>
-                    <td><span class="badge">{{ meta.format }}</span></td>
-                    <td><a href="leaderboard.html?id={{ id }}">Leaderboard</a></td>
-                    <td><a href="arch_matchup.html?id={{ id }}">Matchups</a></td>
-                    <td>{% if id in has_embeddings %}<a href="embeddings-{{ id }}.html">Deck Clustering</a>{% endif %}</td>
-                    <td>{% if meta.get_url() %}<a href="{{ meta.get_url() }}" target="_blank" rel="noopener noreferrer">Data Source</a>{% endif %}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <h2>Active Contests</h2>
+        {{ tourn_table('active') }}
     </section>
+    {% endif %}
+
+    {% if ns.has_upcoming %}
+    <section>
+        <h2>Upcoming Contests</h2>
+        {{ tourn_table('upcoming') }}
+    </section>
+    {% endif %}
+
+    {% if ns.has_past %}
+    <section>
+        <h2>Past Contests</h2>
+        {{ tourn_table('past') }}
+    </section>
+    {% endif %}
 
     <section>
         <h2>Tools</h2>
@@ -140,5 +176,11 @@
             <a href="rank_calculator.html">Rank Calculator</a>
         </div>
     </section>
+    <script>
+    for (const el of document.querySelectorAll('time.local-date')) {
+        const d = new Date(el.getAttribute('datetime'));
+        el.textContent = d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZoneName: 'short' });
+    }
+    </script>
 </body>
 </html>

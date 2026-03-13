@@ -4,7 +4,8 @@ import json
 import logging
 import os
 import sys
-from typing import Annotated, Literal
+from datetime import datetime, timezone
+from typing import Annotated, Literal, Optional
 
 import jinja2
 import yaml
@@ -28,15 +29,15 @@ class TournamentMetadata(BaseModel):
     top_cut_rounds: int = 3
     limited_rounds: list[int] = []
     sim_rounds: int = 100
+    start_date: Optional[datetime] = None
     active: bool = False
-    default: bool = False
 
     @abc.abstractmethod
     def get_url(self) -> str:
         pass
 
     @abc.abstractmethod
-    def scrape(self) -> Tournament:
+    def get_tournament(self) -> Tournament:
         pass
 
 
@@ -56,7 +57,7 @@ class MeleeTournamentMetadata(TournamentMetadata):
     def get_url(self) -> str:
         return f"https://melee.gg/Tournament/View/{self.melee_id}"
 
-    def scrape(self) -> Tournament:
+    def get_tournament(self) -> Tournament:
         return MeleeTournament(
             self.melee_id,
             first_constructed_round=mex(self.limited_rounds),
@@ -72,7 +73,7 @@ class MagicGGTournamentMetadata(TournamentMetadata):
     def get_url(self) -> str:
         return f"https://magic.gg/events/{self.event_name}"
 
-    def scrape(self) -> Tournament:
+    def get_tournament(self) -> Tournament:
         return MagicGGTournament(
             self.event_name,
             self.format,
@@ -137,8 +138,23 @@ def main() -> int:
     with open(args.manifest, "r", encoding="utf-8") as fconfig:
         manifest_raw = yaml.safe_load(fconfig)
 
+    now = datetime.now(tz=timezone.utc)
     manifest = ManifestData.validate_python(manifest_raw)
     for tournament_id, tournament_meta in manifest.items():
+        tour = tournament_meta.get_tournament()
+
+        start_date = tournament_meta.start_date
+        if start_date is None:
+            start_date = tour.get_start_date()
+            tournament_meta.start_date = start_date
+
+        if start_date is None:
+            LOGGER.error(
+                "No start date known for %s. Please manually enter one in manifest",
+                tournament_id,
+            )
+            return 1
+
         if not args.all:
             if args.tournament:
                 if tournament_id not in args.tournament:
@@ -146,14 +162,22 @@ def main() -> int:
             elif not tournament_meta.active:
                 continue
 
-        tour = tournament_meta.scrape()
+        if now < tournament_meta.start_date:
+            LOGGER.info("Contest %s hasn't started yet", tournament_id)
+            continue
 
         LOGGER.info("Scraping %s", tournament_id)
         json_tour = JsonTournament.from_tournament(tour)
+
+        if not any(round_results for round_results in json_tour.get_round_results()):
+            LOGGER.info("No data for %s yet", tournament_id)
+            continue
+
         json_tour.model.title = tournament_meta.title
         json_tour.model.source_url = tournament_meta.get_url()
         json_tour.model.limited_rounds = tournament_meta.limited_rounds
         json_tour.model.top_cut_rounds = tournament_meta.top_cut_rounds
+        json_tour.model.start_date = start_date.isoformat()
 
         json_tour.save_file(os.path.join(args.output_dir, f"{tournament_id}.json"))
 
@@ -175,6 +199,11 @@ def main() -> int:
         if args.embedding or not os.path.exists(embedding_path):
             create_embedding_html(json_tour, embedding_path)
 
+    has_any_data = {
+        tournament_id
+        for tournament_id in manifest
+        if os.path.exists(os.path.join(args.output_dir, f"{tournament_id}.json"))
+    }
     has_embeddings = {
         tournament_id
         for tournament_id in manifest
@@ -189,11 +218,16 @@ def main() -> int:
     )
     template = jinja_env.get_template("index.html.j2")
     sorted_tournaments = sorted(
-        manifest.items(), key=lambda item: (not item[1].active, item[0])
+        manifest.items(),
+        key=lambda item: (
+            -item[1].start_date.timestamp(),  # type: ignore
+            item[0],
+        ),
     )
     index_html = template.render(
         tournaments=sorted_tournaments,
         has_embeddings=has_embeddings,
+        has_any_data=has_any_data,
     )
     index_path = os.path.normpath(os.path.join(args.output_dir, "../index.html"))
     with open(index_path, "w", encoding="utf-8") as f_index:

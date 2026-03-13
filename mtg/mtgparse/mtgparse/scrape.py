@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument(
         "--melee-id",
         help="melee tournament ID",
+        required=True,
     )
     parser.add_argument(
         "-o",
@@ -31,10 +32,6 @@ def parse_args():
 def main() -> int:
     logging.basicConfig(level=logging.INFO)
     args = parse_args()
-
-    if sum(1 if arg else 0 for arg in (args.melee_id, args.magic_gg_event)) != 1:
-        LOGGER.error("Must have exactly one of --melee-id, --magic-gg-event")
-        return 1
 
     tour: Tournament
     if args.melee_id:

@@ -1,10 +1,25 @@
+seachampfinal2026r2:
+  type: melee
+  melee_id: 408810
+  title: "SEA Championship"
+  format: standard
+  top_cut_rounds: 3
+  active: true
+
+rcsydney2026:
+  type: melee
+  melee_id: 341156
+  title: RC Sydney
+  format: standard
+  top_cut_rounds: 3
+  active: true
+
 spotlight-tmnt:
   type: melee
   melee_id: 385921
   title: "Spotlight: TMNT"
   format: standard
   top_cut_rounds: 3
-  default: true
 
 rcturin2026:
   type: melee

@@ -1,6 +1,7 @@
 import json
 import logging
 import urllib.parse
+from datetime import datetime, timezone
 from typing import Optional
 
 from bs4 import BeautifulSoup
@@ -30,21 +31,31 @@ class MeleeTournament(Tournament):
         self.rounds: Optional[list[tuple[int, str]]] = None
         self.players: Optional[dict[str, Player]] = None
 
-    def get_rounds(self) -> list[tuple[int, str]]:
-        if self.rounds is not None:
-            return self.rounds
-
+    def _get_tournament_page(self, *, force: bool = True) -> BeautifulSoup:
         page_html = cached_request(
             f"melee_tournament_{self.tournament_id}",
             "get",
             f"https://melee.gg/Tournament/View/{self.tournament_id}",
-            force=True,
+            force=force,
         )
-        soup = BeautifulSoup(page_html, "lxml")
+        return BeautifulSoup(page_html, "lxml")
 
+    def get_start_date(self) -> Optional[datetime]:
+        soup = self._get_tournament_page(force=False)
+        for time_span in soup.find_all("span", attrs={"data-toggle": "datetime"}):
+            time_value = time_span.get("data-value")
+            dt = datetime.strptime(str(time_value), "%m/%d/%Y %I:%M:%S %p")
+            return dt.replace(tzinfo=timezone.utc)
+        return None
+
+    def get_rounds(self) -> list[tuple[int, str]]:
+        if self.rounds is not None:
+            return self.rounds
+
+        soup = self._get_tournament_page()
         round_selector = soup.find(id="standings-round-selector-container")
         if not round_selector:
-            raise ValueError("Could not find tournament round IDs")
+            return []
 
         self.rounds = []
         for btn in round_selector.find_all("button"):
@@ -87,6 +98,8 @@ class MeleeTournament(Tournament):
         self.players = {}
 
         rounds = self.get_rounds()
+        if not rounds:
+            return {}
 
         player_decks = {}
         player_names = {}
