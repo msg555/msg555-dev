@@ -318,7 +318,6 @@
 
     // All possible probability columns, in display order
     const ALL_PROB_COLS = [
-        { key: 'day_2',   label: 'Day 2',   defaultOn: true,  tooltip: 'Probability of advancing to Day 2' },
         { key: 'top_1',   label: 'Top 1',   defaultOn: false, tooltip: 'Probability of finishing 1st' },
         { key: 'top_2',   label: 'Top 2',   defaultOn: false, tooltip: 'Probability of finishing in the top 2' },
         { key: 'top_4',   label: 'Top 4',   defaultOn: false, tooltip: 'Probability of finishing in the top 4' },
@@ -373,8 +372,19 @@
             };
         });
 
+        // Detect cutoff_N columns from data and prepend them (sorted by N ascending)
+        const cutoffCols = rows.length
+            ? Object.keys(rows[0])
+                .filter(k => k.startsWith('cutoff_'))
+                .sort((a, b) => parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]))
+                .map(k => {
+                    const n = k.split('_')[1];
+                    return { key: k, label: `≥${n} pts`, defaultOn: true, tooltip: `Probability of finishing with at least ${n} points` };
+                })
+            : [];
+
         // Detect which prob cols actually have data
-        availProbCols = ALL_PROB_COLS.filter(c => rows.some(row => row[c.key] != null));
+        availProbCols = [...cutoffCols, ...ALL_PROB_COLS.filter(c => rows.some(row => row[c.key] != null))];
         hasSimData = rows.some(r => r.rank_best != null);
         showArchCol = rows.some(r => r.archetype !== 'unknown');
 
