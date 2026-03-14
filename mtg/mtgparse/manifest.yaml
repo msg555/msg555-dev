@@ -1,17 +1,19 @@
 seachampfinal2026r2:
   type: melee
   melee_id: 408810
-  title: "SEA Championship"
+  title: SEA Championship 2026
   format: standard
   top_cut_rounds: 3
+  required_points: {}
   active: true
 
 rcsydney2026:
   type: melee
   melee_id: 341156
-  title: RC Sydney
+  title: RC Sydney 2026
   format: standard
   top_cut_rounds: 3
+  required_points: {}
   active: true
 
 spotlight-tmnt:
@@ -20,6 +22,8 @@ spotlight-tmnt:
   title: "Spotlight: TMNT"
   format: standard
   top_cut_rounds: 3
+  required_points:
+    9: 18
 
 rcturin2026:
   type: melee
@@ -27,6 +31,8 @@ rcturin2026:
   title: RC Turin 2026
   format: standard
   top_cut_rounds: 3
+  required_points:
+    9: 18
 
 ptlorwyn:
   type: melee
@@ -35,6 +41,8 @@ ptlorwyn:
   format: standard
   top_cut_rounds: 3
   limited_rounds: [0, 1, 2, 8, 9, 10]
+  required_points:
+    9: 18
 
 rcmilwaukee2026:
   type: melee
@@ -42,6 +50,8 @@ rcmilwaukee2026:
   title: RC Milwaukee 2026
   format: standard
   top_cut_rounds: 3
+  required_points:
+    9: 18
 
 rcportland2026:
   type: melee
@@ -49,6 +59,8 @@ rcportland2026:
   title: RC Portland 2026
   format: standard
   top_cut_rounds: 3
+  required_points:
+    9: 18
 
 rcsantiago2026:
   type: melee
@@ -56,3 +68,5 @@ rcsantiago2026:
   title: RC Santiago 2026
   format: standard
   top_cut_rounds: 3
+  required_points:
+    9: 18

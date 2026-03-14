@@ -152,9 +152,12 @@ class PlayerStats:
 
     def __init__(
         self,
+        point_thresholds: list[int],
     ):
+        self.point_thresholds = list(point_thresholds)
         self.wins = 0
         self.top_p2 = [0 for _ in range(self.MAX_POWER)]
+        self.made_cutoff = [0 for _ in self.point_thresholds]
         self.day_2 = 0
         self.rank_best = None
         self.rank_worst = None
@@ -167,14 +170,15 @@ class PlayerStats:
         for ind in range(self.MAX_POWER):
             if rank < 2**ind:
                 self.top_p2[ind] += 1
-        if points >= 18:
-            self.day_2 += 1
+        for index, point_threshold in enumerate(self.point_thresholds):
+            if points >= point_threshold:
+                self.made_cutoff[index] += 1
 
     def display(self) -> str:
         return str(self.top_p2)
 
     def sort_key(self):
-        return ([-x for x in self.top_p2], -self.day_2)
+        return ([-x for x in self.top_p2], [-x for x in self.made_cutoff])
 
 
 def sample_matchups(
@@ -192,10 +196,6 @@ def sample_matchups(
     return result
 
 
-# TODO: Make configurable somehow
-REQUIRED_POINTS = {9: 18}
-
-
 def calc_ranks(
     tour: Tournament,
     *,
@@ -203,6 +203,7 @@ def calc_ranks(
     top_cut_rounds: int = 3,
     sim_rounds: int = 0,
     limited_rounds: Optional[list[int]] = None,
+    required_points: dict[int, int] = None,
 ):
     players = tour.get_players()
     all_round_results = tour.get_round_results()
@@ -216,6 +217,7 @@ def calc_ranks(
     top_cut_players: list[str] = []
 
     st_limited_rounds = set(limited_rounds or ())
+    required_points = required_points or {}
 
     def tiebreakers(player_id):
         pd = player_data[player_id]
@@ -320,7 +322,7 @@ def calc_ranks(
             player_id
             for player_id, pdata in player_data.items()
             if pdata.rounds == round_idx
-            and pdata.points >= REQUIRED_POINTS.get(round_idx, 0)
+            and pdata.points >= required_points.get(round_idx, 0)
         ]
 
         pairings = []
@@ -473,7 +475,11 @@ def calc_ranks(
 
     player_stats = {}
     if sim_rounds:
-        player_stats = {player_id: PlayerStats() for player_id in players}
+        point_thresholds = list(required_points.values())
+        player_stats = {
+            player_id: PlayerStats(point_thresholds)
+            for player_id in players
+        }
 
         init_player_data = copy.deepcopy(player_data)
         init_player_matchups = copy.deepcopy(player_matchups)
@@ -521,7 +527,12 @@ def calc_ranks(
             stats = player_stats[player_id]
             player_output["rank_best"] = stats.rank_best + 1
             player_output["rank_worst"] = stats.rank_worst + 1
-            player_output["day_2"] = stats.day_2 / sim_rounds
+            player_output.update(
+                {
+                    f"cutoff_{point_threshold}": stats.made_cutoff[index] / sim_rounds
+                    for index, point_threshold in enumerate(point_thresholds)
+                }
+            )
             player_output.update(
                 {
                     f"top_{2 ** ind}": stats.top_p2[ind] / sim_rounds
@@ -553,6 +564,7 @@ def main() -> int:
         tour,
         round_limit=args.rounds,
         top_cut_rounds=args.top_cut,
+        required_points={9: 18},
         sim_rounds=args.sim_rounds,
     )
 

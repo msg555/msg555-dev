@@ -27,8 +27,9 @@ class TournamentMetadata(BaseModel):
     title: str
     format: str
     top_cut_rounds: int = 3
+    required_points: dict[int, int] = {9: 18}
     limited_rounds: list[int] = []
-    sim_rounds: int = 100
+    sim_rounds: int = 5000
     start_date: Optional[datetime] = None
     active: bool = False
 
@@ -184,6 +185,7 @@ def main() -> int:
         ranks = calc_ranks(
             json_tour,
             top_cut_rounds=tournament_meta.top_cut_rounds,
+            required_points=tournament_meta.required_points,
             sim_rounds=tournament_meta.sim_rounds,
         )
         with open(
