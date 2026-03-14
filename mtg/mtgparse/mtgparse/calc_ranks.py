@@ -159,13 +159,13 @@ class PlayerStats:
         self.top_p2 = [0 for _ in range(self.MAX_POWER)]
         self.made_cutoff = [0 for _ in self.point_thresholds]
         self.day_2 = 0
-        self.rank_best = None
-        self.rank_worst = None
+        self.rank_best = -1
+        self.rank_worst = -1
 
     def record_rank(self, rank: int, points: int) -> None:
-        if self.rank_best is None or rank < self.rank_best:
+        if self.rank_best == -1 or rank < self.rank_best:
             self.rank_best = rank
-        if self.rank_worst is None or self.rank_worst < rank:
+        if self.rank_worst == -1 or self.rank_worst < rank:
             self.rank_worst = rank
         for ind in range(self.MAX_POWER):
             if rank < 2**ind:
@@ -203,7 +203,7 @@ def calc_ranks(
     top_cut_rounds: int = 3,
     sim_rounds: int = 0,
     limited_rounds: Optional[list[int]] = None,
-    required_points: dict[int, int] = None,
+    required_points: Optional[dict[int, int]] = None,
 ):
     players = tour.get_players()
     all_round_results = tour.get_round_results()
@@ -253,6 +253,9 @@ def calc_ranks(
         if not round_results:
             # Empty results means the round hasn't been recorded yet.
             break
+
+        # Non-empty round, no earlier round should have pending results
+        assert not has_round_pending
 
         # If we're heading into top cut need to calculate who made it.
         if round_idx == round_total - top_cut_rounds:
@@ -332,9 +335,11 @@ def calc_ranks(
             # for so we just need to simulate unreported results.
             for match_result in all_round_results[round_idx]:
                 if not match_result.complete:
+                    assert match_result.p1 in rem_players
+                    assert match_result.p2 in rem_players
                     pairings.append((match_result.p1, match_result.p2))
         elif round_idx < round_total - top_cut_rounds:
-            if round_idx < round_total - top_cut_rounds - 1:
+            if round_idx + 1 < top_cut_round_idx:
                 # Pair randomly among players with the same number of points.
                 # We reuse the power pairing logic but just order players by their
                 # points and break ties using a random key.
@@ -361,7 +366,7 @@ def calc_ranks(
                 past_matchups = player_matchups[p1]
                 for pair_rank in range(rank + 1, len(rem_players)):
                     p2 = rem_players[pair_rank]
-                    if p2 not in past_matchups:
+                    if p2 not in paired and p2 not in past_matchups:
                         pairings.append((p1, p2))
                         paired.add(p2)
                         break
@@ -369,7 +374,7 @@ def calc_ranks(
                     # Give bye if no way to pair
                     pairings.append((p1, None))
         else:
-            if round_idx == round_total - top_cut_rounds:
+            if round_idx == top_cut_round_idx:
                 # Setup single elimination structure
                 rem_players.sort(key=tiebreakers)
                 top_cut_players.clear()
@@ -400,7 +405,7 @@ def calc_ranks(
         # should be a relatively accurate assumption.
 
         intentional_draws = set()
-        if not partial and round_idx == round_total - top_cut_rounds - 1:
+        if not partial and round_idx + 1 == top_cut_round_idx:
             cut_off_rank = 2**top_cut_rounds
 
             orig_breakers = {
@@ -448,8 +453,8 @@ def calc_ranks(
                 player_data[p1].record_match((2, 0, 0))
                 continue
             if (p1, p2) in intentional_draws:
-                player_data[p1].record_match((0, 0, 0))
-                player_data[p2].record_match((0, 0, 0))
+                player_data[p1].record_match((0, 0, 3))
+                player_data[p2].record_match((0, 0, 3))
                 continue
 
             if round_idx in st_limited_rounds:
@@ -463,6 +468,8 @@ def calc_ranks(
                 winner = 0 if random.random() < matchup_prob else 1
                 games[winner] += 1
 
+            assert player_data[p1].rounds == round_idx
+            assert player_data[p2].rounds == round_idx
             player_data[p1].record_match((games[0], games[1], 0))
             player_data[p2].record_match((games[1], games[0], 0))
 
@@ -477,8 +484,7 @@ def calc_ranks(
     if sim_rounds:
         point_thresholds = list(required_points.values())
         player_stats = {
-            player_id: PlayerStats(point_thresholds)
-            for player_id in players
+            player_id: PlayerStats(point_thresholds) for player_id in players
         }
 
         init_player_data = copy.deepcopy(player_data)

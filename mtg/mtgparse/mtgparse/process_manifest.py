@@ -117,6 +117,13 @@ def parse_args():
         help="Force process every tournament",
     )
     parser.add_argument(
+        "--no-scrape",
+        default=False,
+        action="store_const",
+        const=True,
+        help="If set load tournament from json instead of scraping",
+    )
+    parser.add_argument(
         "--embedding",
         default=False,
         action="store_const",
@@ -163,12 +170,17 @@ def main() -> int:
             elif not tournament_meta.active:
                 continue
 
+        assert tournament_meta.start_date is not None
         if now < tournament_meta.start_date:
             LOGGER.info("Contest %s hasn't started yet", tournament_id)
             continue
 
-        LOGGER.info("Scraping %s", tournament_id)
-        json_tour = JsonTournament.from_tournament(tour)
+        json_path = os.path.join(args.output_dir, f"{tournament_id}.json")
+        if args.no_scrape:
+            json_tour = JsonTournament.from_file(json_path)
+        else:
+            LOGGER.info("Scraping %s", tournament_id)
+            json_tour = JsonTournament.from_tournament(tour)
 
         if not any(round_results for round_results in json_tour.get_round_results()):
             LOGGER.info("No data for %s yet", tournament_id)
@@ -180,7 +192,8 @@ def main() -> int:
         json_tour.model.top_cut_rounds = tournament_meta.top_cut_rounds
         json_tour.model.start_date = start_date.isoformat()
 
-        json_tour.save_file(os.path.join(args.output_dir, f"{tournament_id}.json"))
+        if not args.no_scrape:
+            json_tour.save_file(json_path)
 
         ranks = calc_ranks(
             json_tour,
