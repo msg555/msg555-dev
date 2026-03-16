@@ -105,6 +105,21 @@ class MeleeTournament(Tournament):
         player_names = {}
         player_urls = {}
 
+        def _ingest_competitor_record(competitor) -> bool:
+            player_id = str(competitor["TeamId"])
+            decks = competitor["Decklists"]
+            player_decks[player_id] = decks[0] if decks else None
+            player_names[player_id] = " and ".join(
+                player["DisplayName"] for player in competitor["Team"]["Players"]
+            )
+            player_0 = next(iter(competitor["Team"]["Players"]), None)
+            if player_0:
+                player_urls[player_id] = (
+                    "https://melee.gg/Profile/Index/"
+                    + urllib.parse.quote(player_0["Username"])
+                )
+            return bool(decks)
+
         # Use first round to ensure we get all player data. Then use first constructed
         # round to overwrite any decklist data.
         for force in (False, True):
@@ -117,22 +132,21 @@ class MeleeTournament(Tournament):
             has_decks = False
             for match_result in match_results:
                 for competitor in match_result["Competitors"]:
-                    decks = competitor["Decklists"]
-                    player_decks[str(competitor["TeamId"])] = (
-                        decks[0] if decks else None
-                    )
-                    if decks:
+                    if _ingest_competitor_record(competitor):
                         has_decks = True
-                    player_names[str(competitor["TeamId"])] = " and ".join(
-                        player["DisplayName"]
-                        for player in competitor["Team"]["Players"]
-                    )
-                    player_0 = next(iter(competitor["Team"]["Players"]), None)
-                    if player_0:
-                        player_urls[str(competitor["TeamId"])] = (
-                            "https://melee.gg/Profile/Index/"
-                            + urllib.parse.quote(player_0["Username"])
-                        )
+
+            if has_decks:
+                break
+
+        for force in (False, True):
+            has_decks = False
+            for competitor in self.page_round_standings(
+                rounds[self.first_constructed_round][0],
+                force=force,
+            ):
+                if _ingest_competitor_record(competitor):
+                    has_decks = True
+
             if has_decks:
                 break
 
@@ -181,7 +195,7 @@ class MeleeTournament(Tournament):
 
             start += page_size
 
-    def page_round_standings(self, round_id: int):
+    def page_round_standings(self, round_id: int, *, force: bool = False):
         start = 0
         page_size = 100
 
@@ -202,6 +216,7 @@ class MeleeTournament(Tournament):
                     "search[value]": "",
                     "search[regex]": "false",
                 },
+                force=force,
             )
             result = json.loads(raw_result)
             yield from result["data"]

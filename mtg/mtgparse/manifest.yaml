@@ -5,7 +5,6 @@ seachampfinal2026r2:
   format: standard
   top_cut_rounds: 3
   required_points: {}
-  active: true
 
 rcsydney2026:
   type: melee
@@ -14,7 +13,6 @@ rcsydney2026:
   format: standard
   top_cut_rounds: 3
   required_points: {}
-  active: true
 
 spotlight-tmnt:
   type: melee
