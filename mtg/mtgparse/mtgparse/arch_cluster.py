@@ -1,4 +1,5 @@
 import argparse
+import collections
 import itertools
 import logging
 
@@ -46,17 +47,39 @@ def create_embedding_html(
     if not cards:
         return False
 
-    card_index = {card: idx for idx, card in enumerate(cards)}
-    player_idents = list(players)
+    player_idents = [
+        player_id
+        for player_id, player_data in players.items()
+        if player_data.deck.main_deck
+    ]
+    dist = np.zeros((len(player_idents), len(player_idents)))
 
-    vecs = np.zeros((len(players), len(cards)))
-    for player_index, player_id in enumerate(player_idents):
+    card_total = []
+    card_counts = []
+    for player_id in player_idents:
         deck = players[player_id].deck
-        for card in itertools.chain(deck.main_deck, deck.side_board):
-            vecs[player_index][card_index[card.name]] += card.count
 
-    mds = MDS(n_components=2, metric=True, max_iter=100, eps=1e-4)
-    vec_2d = mds.fit_transform(vecs)
+        player_card_counts: dict[str, int] = collections.Counter()
+        player_card_total = 0
+        for card in itertools.chain(deck.main_deck, deck.side_board):
+            player_card_counts[card.name] += card.count
+            player_card_total += card.count
+
+        assert player_card_total > 0
+        card_counts.append(player_card_counts)
+        card_total.append(player_card_total)
+
+    for p1_idx, p1_cc in enumerate(card_counts):
+        for p2_idx, p2_cc in enumerate(card_counts[p1_idx + 1 :], start=p1_idx + 1):
+            overlap = 0
+            for card_name, card_count in p1_cc.items():
+                overlap += min(card_count, p2_cc.get(card_name, 0))
+            dist[p1_idx][p2_idx] = dist[p2_idx][p1_idx] = 1 - overlap / max(
+                card_total[p1_idx], card_total[p2_idx]
+            )
+
+    mds = MDS(n_components=2, dissimilarity="precomputed", max_iter=100, eps=1e-4)
+    vec_2d = mds.fit_transform(dist)
 
     arch_map: dict[str, int] = {}
     arch_list: list[str] = []
