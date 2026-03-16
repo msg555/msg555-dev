@@ -61,7 +61,10 @@ def create_embedding_html(
 
         player_card_counts: dict[str, int] = collections.Counter()
         player_card_total = 0
-        for card in itertools.chain(deck.main_deck, deck.side_board):
+        for card in deck.main_deck:
+            player_card_counts[card.name] += card.count * 2
+            player_card_total += card.count * 2
+        for card in deck.side_board:
             player_card_counts[card.name] += card.count
             player_card_total += card.count
 
