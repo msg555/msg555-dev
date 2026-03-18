@@ -1,3 +1,13 @@
+paupergeddon-spring-2026:
+  type: melee
+  melee_id: 412125
+  title: Paupergeddon Spring 2026
+  format: pauper
+  top_cut_rounds: 3
+  required_points:
+    8: 18
+  active: true
+
 seachampfinal2026r2:
   type: melee
   melee_id: 408810
