@@ -1,6 +1,5 @@
 import argparse
 import collections
-import itertools
 import logging
 
 import matplotlib

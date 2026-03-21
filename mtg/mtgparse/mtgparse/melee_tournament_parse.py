@@ -272,16 +272,25 @@ class MeleeTournament(Tournament):
                 comps[0], comps[1] = comps[1], comps[0]
                 games = (games[1], games[0], games[2])
 
+            is_drop = games == (0, 0, 0)
+
             winner = comps[0]["Team"]["Players"][0]["DisplayName"]
             exp_results = f"{winner} won {games[0]}-{games[1]}-{games[2]}"
-            if games[0] == games[1]:
+            if is_drop:
+                # Shows up weird but the 'HasReported=True' status seems to
+                # imply this is actually a drop
+                exp_results = "Not reported"
+            elif games[0] == games[1]:
                 exp_results = f"{games[0]}-{games[1]}-{games[2]} Draw"
 
             if exp_results != match_result["ResultString"]:
                 print(json.dumps(match_result, indent=2))
                 print(exp_results)
                 print(match_result["ResultString"])
-                raise ValueError("Calcualted result doesn't match")
+                raise ValueError("Calculated result doesn't match")
+
+            if is_drop:
+                continue
 
             match_results.append(
                 MatchResult(
