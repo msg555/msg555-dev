@@ -3,6 +3,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from typing import Annotated, Literal, Optional
@@ -11,6 +12,7 @@ import jinja2
 import yaml
 from pydantic import BaseModel, Field, TypeAdapter
 
+from mtgparse.anthropic_label_archetypes import label_decks
 from mtgparse.arch_cluster import create_embedding_html
 from mtgparse.calc_ranks import calc_ranks
 from mtgparse.data_model import Tournament
@@ -23,13 +25,20 @@ LOGGER = logging.getLogger(__name__)
 SCRIPT_DIR = os.path.dirname(__file__)
 
 
+class AutoLabel(BaseModel):
+    enabled: bool = True
+    force: bool = False
+    format_markdown: str
+
+
 class TournamentMetadata(BaseModel):
     title: str
     format: str
+    auto_label: Optional[AutoLabel] = None
     top_cut_rounds: int = 3
     required_points: dict[int, int] = {9: 18}
     limited_rounds: list[int] = []
-    sim_rounds: int = 5000
+    sim_rounds: int = 50000
     start_date: Optional[datetime] = None
     active: bool = False
 
@@ -136,6 +145,13 @@ def parse_args():
         default=os.path.normpath(os.path.join(SCRIPT_DIR, "../../../docs/tournaments")),
         help="Manifest file controlling tournament metadata",
     )
+    parser.add_argument(
+        "--python-simulation",
+        action="store_const",
+        const=True,
+        default=False,
+        help="Use Python instead of Go for simulation",
+    )
     return parser.parse_args()
 
 
@@ -186,6 +202,13 @@ def main() -> int:
             LOGGER.info("No data for %s yet", tournament_id)
             continue
 
+        if tournament_meta.auto_label and tournament_meta.auto_label.enabled:
+            label_decks(
+                tournament_meta.auto_label.format_markdown,
+                [player.deck for player in json_tour.get_players().values()],
+                force=tournament_meta.auto_label.force,
+            )
+
         json_tour.model.title = tournament_meta.title
         json_tour.model.source_url = tournament_meta.get_url()
         json_tour.model.limited_rounds = tournament_meta.limited_rounds
@@ -195,12 +218,37 @@ def main() -> int:
         if not args.no_scrape:
             json_tour.save_file(json_path)
 
-        ranks = calc_ranks(
-            json_tour,
-            top_cut_rounds=tournament_meta.top_cut_rounds,
-            required_points=tournament_meta.required_points,
-            sim_rounds=tournament_meta.sim_rounds,
-        )
+        if args.python_simulation:
+            ranks = calc_ranks(
+                json_tour,
+                top_cut_rounds=tournament_meta.top_cut_rounds,
+                required_points=tournament_meta.required_points,
+                sim_rounds=tournament_meta.sim_rounds,
+            )
+        else:
+            result = subprocess.run(
+                [
+                    "go",
+                    "run",
+                    "calc_ranks.go",
+                    "-i",
+                    json_path,
+                    "--sim-rounds",
+                    str(tournament_meta.sim_rounds),
+                    "--top-cut",
+                    str(tournament_meta.top_cut_rounds),
+                    "--required-points",
+                    ",".join(
+                        f"{key}:{val}"
+                        for key, val in tournament_meta.required_points.items()
+                    ),
+                ],
+                cwd=os.path.join(SCRIPT_DIR, ".."),
+                capture_output=True,
+                check=True,
+            )
+            ranks = json.loads(result.stdout)
+
         with open(
             os.path.join(args.output_dir, f"ranks/{tournament_id}.json"),
             "w",
