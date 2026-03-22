@@ -238,10 +238,11 @@ def label_decks(
 ) -> None:
     decks_to_label: list[Deck] = []
     for deck in decks:
-        if not deck.main_deck or not deck.side_board:
+        if not deck.main_deck:
+            deck.archetype = "No Decklist"
             continue
-        if deck.archetype.lower() not in ("unknown", "other", "others", "decklist"):
-            continue
+        # if deck.archetype.lower() not in ("unknown", "other", "others", "decklist"):
+        #     continue
         decks_to_label.append(deck)
 
     with open(arch_md_path, "r", encoding="utf-8") as farch:
