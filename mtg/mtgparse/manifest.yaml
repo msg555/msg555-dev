@@ -1,3 +1,12 @@
+ldxp-sea26-8slotrcq:
+  type: melee
+  melee_id: 402502
+  title: LDXP SEA26 Modern 10k - 8 slot RCQ
+  format: modern
+  top_cut_rounds: 3
+  required_points:
+    8: 18
+  
 paupergeddon-spring-2026:
   type: melee
   melee_id: 412125

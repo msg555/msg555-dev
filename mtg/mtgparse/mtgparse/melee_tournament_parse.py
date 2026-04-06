@@ -44,8 +44,17 @@ class MeleeTournament(Tournament):
         soup = self._get_tournament_page(force=False)
         for time_span in soup.find_all("span", attrs={"data-toggle": "datetime"}):
             time_value = time_span.get("data-value")
-            dt = datetime.strptime(str(time_value), "%m/%d/%Y %I:%M:%S %p")
-            return dt.replace(tzinfo=timezone.utc)
+            try:
+                return datetime.strptime(str(time_value), "%Y-%m-%dT%H:%M:%S.%f0%z")
+            except ValueError:
+                pass
+            try:
+                dt = datetime.strptime(str(time_value), "%m/%d/%Y %I:%M:%S %p")
+                return dt.replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
+            raise ValueError(f"Could not parse time {repr(str(time_value))}")
+
         return None
 
     def get_rounds(self) -> list[tuple[int, str]]:
