@@ -1,3 +1,12 @@
+rccincinnati2026:
+  type: melee
+  melee_id: 370745
+  title: RC Cincinnati 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points:
+    9: 18
+
 ldxp-sea26-8slotrcq:
   type: melee
   melee_id: 402502

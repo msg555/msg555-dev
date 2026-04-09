@@ -99,20 +99,20 @@
 <body>
     <h1>MTG Tournaments</h1>
 
-{# Pre-pass: classify each tournament #}
-{% set ns = namespace(has_active=false, has_upcoming=false, has_past=false) %}
-{% for id, meta in tournaments %}
-    {% if id not in has_any_data %}
-        {% set ns.has_upcoming = true %}
-    {% elif meta.active %}
-        {% set ns.has_active = true %}
-    {% else %}
-        {% set ns.has_past = true %}
-    {% endif %}
-{% endfor %}
+{#- Pre-pass: classify each tournament #}
+{%- set ns = namespace(has_active=false, has_upcoming=false, has_past=false) %}
+{%- for id, meta in tournaments %}
+    {%- if id not in has_any_data %}
+        {%- set ns.has_upcoming = true %}
+    {%- elif meta.active %}
+        {%- set ns.has_active = true %}
+    {%- else %}
+        {%- set ns.has_past = true %}
+    {%- endif %}
+{%- endfor %}
 
-{# Macro to render a table of tournaments filtered by a category #}
-{% macro tourn_table(category) %}
+{#- Macro to render a table of tournaments filtered by a category #}
+{%- macro tourn_table(category) %}
     <table class="tourn-table">
         <thead>
             <tr>
@@ -128,10 +128,10 @@
             </tr>
         </thead>
         <tbody>
-            {% for id, meta in tournaments %}
-            {% if (category == 'upcoming' and id not in has_any_data)
-               or (category == 'active'   and id in has_any_data and meta.active)
-               or (category == 'past'     and id in has_any_data and not meta.active) %}
+            {%- for id, meta in tournaments %}
+            {%- if (category == 'upcoming' and id not in has_any_data)
+                or (category == 'active'   and id in has_any_data and meta.active)
+                or (category == 'past'     and id in has_any_data and not meta.active) %}
             <tr>
                 <td class="col-title">{{ meta.title }}</td>
                 <td><span class="badge">{{ meta.format }}</span></td>
@@ -143,32 +143,32 @@
                 <td>{% if meta.get_url() %}<a href="{{ meta.get_url() }}" target="_blank" rel="noopener noreferrer">Data Source</a>{% endif %}</td>
                 <td><time class="local-date" datetime="{{ meta.start_date.isoformat() }}">{{ meta.start_date.strftime('%Y-%m-%d') }}</time></td>
             </tr>
-            {% endif %}
-            {% endfor %}
+            {%- endif %}
+            {%- endfor %}
         </tbody>
     </table>
-{% endmacro %}
+{%- endmacro %}
 
-    {% if ns.has_active %}
+    {%- if ns.has_active %}
     <section>
         <h2>Active Contests</h2>
         {{ tourn_table('active') }}
     </section>
-    {% endif %}
+    {%- endif %}
 
-    {% if ns.has_upcoming %}
+    {%- if ns.has_upcoming %}
     <section>
         <h2>Upcoming Contests</h2>
         {{ tourn_table('upcoming') }}
     </section>
-    {% endif %}
+    {%- endif %}
 
-    {% if ns.has_past %}
+    {%- if ns.has_past %}
     <section>
         <h2>Past Contests</h2>
         {{ tourn_table('past') }}
     </section>
-    {% endif %}
+    {%- endif %}
 
     <section>
         <h2>Tools</h2>
