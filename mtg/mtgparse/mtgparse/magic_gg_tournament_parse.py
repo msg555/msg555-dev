@@ -3,6 +3,7 @@ from typing import Optional
 
 from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
+import requests
 
 from mtgparse.calc_ranks import get_top_cut
 from mtgparse.common import cached_request
@@ -112,14 +113,19 @@ class MagicGGTournament(Tournament):
         return best[1]
 
     def get_single_round_result(self, round_num: int) -> list[MatchResult]:
-        soup = BeautifulSoup(
-            cached_request(
-                f"{self.event_name}-results-{round_num}.html",
-                "get",
-                f"https://magic.gg/news/{self.event_name}-round-{round_num}-results",
-            ),
-            "lxml",
-        )
+        try:
+            soup = BeautifulSoup(
+                cached_request(
+                    f"{self.event_name}-results-{round_num}.html",
+                    "get",
+                    f"https://magic.gg/news/{self.event_name}-round-{round_num}-results",
+                ),
+                "lxml",
+            )
+        except requests.exceptions.HTTPError as err:
+            if err.response.status_code == 404:
+                return []
+            raise
 
         results: list[MatchResult] = []
         for table in soup.find_all("table"):
@@ -203,21 +209,26 @@ class MagicGGTournament(Tournament):
         so we just treat it as 1-0-0 game result to have a minimal impact on game
         statistics.
         """
-        final_standings = self._parse_round_results(
-            cached_request(
-                f"{self.event_name}-final-standings.html",
-                "get",
-                f"https://magic.gg/news/{self.event_name}-final-standings",
-            ),
-            is_final=True,
-        )
-        pre_cut_standings = self._parse_round_results(
-            cached_request(
-                f"{self.event_name}-round-{self.rounds}-standings.html",
-                "get",
-                f"https://magic.gg/news/{self.event_name}-round-{self.rounds}-standings",
+        try:
+            final_standings = self._parse_round_results(
+                cached_request(
+                    f"{self.event_name}-final-standings.html",
+                    "get",
+                    f"https://magic.gg/news/{self.event_name}-final-standings",
+                ),
+                is_final=True,
             )
-        )
+            pre_cut_standings = self._parse_round_results(
+                cached_request(
+                    f"{self.event_name}-round-{self.rounds}-standings.html",
+                    "get",
+                    f"https://magic.gg/news/{self.event_name}-round-{self.rounds}-standings",
+                )
+            )
+        except requests.exceptions.HTTPError as err:
+            if err.response.status_code == 404:
+                return []
+            raise
         cut_off_rank = 2**self.top_cut_rounds
 
         final_standings = final_standings[:cut_off_rank]

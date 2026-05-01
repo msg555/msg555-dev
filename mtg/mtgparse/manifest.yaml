@@ -7,6 +7,19 @@ rccincinnati2026:
   required_points:
     9: 18
 
+ptsos:
+  type: magic_gg
+  title: Pro Tour Secrets of Strixhaven
+  format: standard
+  top_cut_rounds: 3
+  limited_rounds: [0, 1, 2, 8, 9, 10]
+  required_points:
+    8: 12
+  start_date: 2026-05-01T18:00:00Z
+  rounds: 16
+  event_name: pro-tour-secrets-of-strixhaven
+  decklist_buckets: [a-f, g-l, m-r, s-z]
+
 ldxp-sea26-8slotrcq:
   type: melee
   melee_id: 402502
@@ -69,7 +82,7 @@ ptlorwyn:
   top_cut_rounds: 3
   limited_rounds: [0, 1, 2, 8, 9, 10]
   required_points:
-    9: 18
+    8: 12
 
 rcmilwaukee2026:
   type: melee
