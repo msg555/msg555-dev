@@ -1,9 +1,9 @@
 import re
 from typing import Optional
 
+import requests
 from bs4 import BeautifulSoup
 from Levenshtein import ratio as edit_ratio
-import requests
 
 from mtgparse.calc_ranks import get_top_cut
 from mtgparse.common import cached_request
@@ -119,6 +119,7 @@ class MagicGGTournament(Tournament):
                     f"{self.event_name}-results-{round_num}.html",
                     "get",
                     f"https://magic.gg/news/{self.event_name}-round-{round_num}-results",
+                    force=True,
                 ),
                 "lxml",
             )
@@ -156,17 +157,40 @@ class MagicGGTournament(Tournament):
                     assert match_record[0] == match_record[1]
                 else:
                     m = re.match(
-                        "(.*) won ([0-9])-([0-9])-([0-9])",
+                        "(.*) forfeited the match",
                         cols[3],
                     )
-                    if not m:
-                        raise ValueError(f"Couldn't determine result {repr(cols[3])}")
+                    if m:
+                        # Player dropped, just drop record
+                        continue
+                    else:
+                        m = re.match(
+                            "(.*) won ([0-9])-([0-9])-([0-9])",
+                            cols[3],
+                        )
+                        if not m:
+                            raise ValueError(
+                                f"Couldn't determine result {repr(cols[3])}"
+                            )
 
-                    match_record = (int(m.group(2)), int(m.group(3)), int(m.group(4)))
-                    assert match_record[0] > match_record[1]
+                        match_record = (
+                            int(m.group(2)),
+                            int(m.group(3)),
+                            int(m.group(4)),
+                        )
+                        assert match_record[0] > match_record[1]
+
                     if edit_ratio(m.group(1), player_1) < edit_ratio(
                         m.group(1), player_2
                     ):
+                        player_1, player_2 = player_2, player_1
+
+                    if match_record[0] < match_record[1]:
+                        match_record = (
+                            match_record[1],
+                            match_record[0],
+                            match_record[2],
+                        )
                         player_1, player_2 = player_2, player_1
 
                 results.append(
@@ -256,9 +280,13 @@ class MagicGGTournament(Tournament):
         return result
 
     def get_round_results(self) -> list[list[MatchResult]]:
-        result = [
-            self.get_single_round_result(round_num + 1)
-            for round_num in range(self.rounds)
-        ]
+        result = []
+        for round_num in range(self.rounds):
+            round_result = self.get_single_round_result(round_num + 1)
+            if not round_result:
+                return result + [
+                    [] for _ in range(self.rounds + self.top_cut_rounds - len(result))
+                ]
+            result.append(round_result)
         result.extend(self.get_top_cut_results())
         return result
