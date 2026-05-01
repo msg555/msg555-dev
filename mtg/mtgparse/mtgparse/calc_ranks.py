@@ -90,8 +90,10 @@ class PlayerData:
         self.top_cut_round_idx = top_cut_round_idx
         self.top_cut_points = 0
         self.points = 0
+        self.constructed_points = 0
         self.rounds = 0
         self.match_record = (0, 0, 0)
+        self.constructed_record = (0, 0, 0)
         self.game_record = (0, 0, 0)
 
     def record_match(
@@ -99,6 +101,7 @@ class PlayerData:
         games: tuple[int, int, int],
         *,
         reverse: bool = False,
+        limited: bool = False,
     ) -> None:
         self.rounds += 1
         if reverse:
@@ -117,9 +120,13 @@ class PlayerData:
 
         # This is just for record-keeping, not used in breakers
         self.match_record = zip_add(self.match_record, match)
+        if not limited:
+            self.constructed_record = zip_add(self.constructed_record, match)
 
         if self.rounds <= self.top_cut_round_idx:
             self.points += points
+            if not limited:
+                self.constructed_points += points
 
             # This is just used for breakers calculations
             self.game_record = zip_add(self.game_record, games)
@@ -294,15 +301,21 @@ def calc_ranks(
                     )
                 seen_in_round.add(player_id)
 
+            is_limited = round_idx in st_limited_rounds
             if p2 is None:  # Bye
-                player_data[p1].record_match((2, 0, 0))
+                # Forfeited
+                if games[1] == 2:
+                    player_data[p1].record_match((0, 2, 0), limited=is_limited)
+                continue
+            if p2 is None:  # Bye
+                player_data[p1].record_match((2, 0, 0), limited=is_limited)
                 continue
 
             if round_idx < top_cut_round_idx:
                 player_matchups[p1].append(p2)
                 player_matchups[p2].append(p1)
-            player_data[p1].record_match(games)
-            player_data[p2].record_match(games, reverse=True)
+            player_data[p1].record_match(games, limited=is_limited)
+            player_data[p2].record_match(games, reverse=True, limited=is_limited)
 
             # Record matchup result
             if round_idx not in st_limited_rounds:
@@ -448,16 +461,17 @@ def calc_ranks(
                 if worst_rank < cut_off_rank:
                     intentional_draws.add((p1, p2))
 
+        is_limited = round_idx in st_limited_rounds
         for p1, p2 in pairings:
             if p2 is None:
-                player_data[p1].record_match((2, 0, 0))
+                player_data[p1].record_match((2, 0, 0), limited=is_limited)
                 continue
             if (p1, p2) in intentional_draws:
-                player_data[p1].record_match((0, 0, 3))
-                player_data[p2].record_match((0, 0, 3))
+                player_data[p1].record_match((0, 0, 3), limited=is_limited)
+                player_data[p2].record_match((0, 0, 3), limited=is_limited)
                 continue
 
-            if round_idx in st_limited_rounds:
+            if is_limited:
                 matchup_prob = 0.5
             else:
                 matchup_prob = arch_matchup_probs.get(
@@ -470,8 +484,8 @@ def calc_ranks(
 
             assert player_data[p1].rounds == round_idx
             assert player_data[p2].rounds == round_idx
-            player_data[p1].record_match((games[0], games[1], 0))
-            player_data[p2].record_match((games[1], games[0], 0))
+            player_data[p1].record_match((games[0], games[1], 0), limited=is_limited)
+            player_data[p2].record_match((games[1], games[0], 0), limited=is_limited)
 
     if not all_round_results:
         sim_rounds = 0  # Empty tournament?
@@ -528,6 +542,11 @@ def calc_ranks(
             "gw": float(pdata.game_win_percentage),
             "ogw": float(-opp_game_win_perc),
         }
+        if limited_rounds:
+            player_output["constructed_record"] = "-".join(
+                str(x) for x in pdata.constructed_record
+            )
+            player_output["constructed_points"] = pdata.constructed_points
 
         if player_stats:
             stats = player_stats[player_id]

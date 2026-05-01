@@ -83,12 +83,14 @@ func archetype(deck Deck) string {
 const minPercentage = 1.0 / 3.0
 
 type PlayerData struct {
-	topCutRoundIdx int
-	topCutPoints   int
-	points         int
-	rounds         int
-	matchRecord    [3]int
-	gameRecord     [3]int
+	topCutRoundIdx    int
+	topCutPoints      int
+	points            int
+	constructedPoints int
+	rounds            int
+	matchRecord       [3]int
+	constructedRecord [3]int
+	gameRecord        [3]int
 }
 
 func (pd *PlayerData) clone() *PlayerData {
@@ -96,7 +98,7 @@ func (pd *PlayerData) clone() *PlayerData {
 	return &cp
 }
 
-func (pd *PlayerData) recordMatch(games [3]int, reverse bool) {
+func (pd *PlayerData) recordMatch(games [3]int, reverse bool, limited bool) {
 	pd.rounds++
 	if reverse {
 		games[0], games[1] = games[1], games[0]
@@ -114,10 +116,18 @@ func (pd *PlayerData) recordMatch(games [3]int, reverse bool) {
 	for i := range pd.matchRecord {
 		pd.matchRecord[i] += match[i]
 	}
+	if !limited {
+		for i := range pd.constructedRecord {
+			pd.constructedRecord[i] += match[i]
+		}
+	}
 	if pd.rounds <= pd.topCutRoundIdx {
 		pd.points += points
 		for i := range pd.gameRecord {
 			pd.gameRecord[i] += games[i]
+		}
+		if !limited {
+			pd.constructedPoints += points
 		}
 	} else {
 		pd.topCutPoints += points
@@ -450,8 +460,13 @@ func calcRanks(
 				}
 				seen[pid] = true
 			}
+			isLimited := limitedRounds[roundIdx]
 			if rr.P2 == nil {
-				playerData[rr.P1].recordMatch([3]int{2, 0, 0}, false)
+				if rr.Games[1] == 2 {
+					playerData[rr.P1].recordMatch([3]int{0, 2, 0}, false, isLimited)
+				} else {
+					playerData[rr.P1].recordMatch([3]int{2, 0, 0}, false, isLimited)
+				}
 				continue
 			}
 			p2 := *rr.P2
@@ -459,8 +474,8 @@ func calcRanks(
 				playerMatchups[rr.P1] = append(playerMatchups[rr.P1], p2)
 				playerMatchups[p2] = append(playerMatchups[p2], rr.P1)
 			}
-			playerData[rr.P1].recordMatch(rr.Games, false)
-			playerData[p2].recordMatch(rr.Games, true)
+			playerData[rr.P1].recordMatch(rr.Games, false, isLimited)
+			playerData[p2].recordMatch(rr.Games, true, isLimited)
 
 			if !limitedRounds[roundIdx] {
 				a1 := archetype(players[rr.P1].Deck)
@@ -569,6 +584,10 @@ func calcRanks(
 			"omw":           -tk.negOMW,
 			"gw":            pd.gameWinPct(),
 			"ogw":           -tk.negOGW,
+		}
+		if len(tour.LimitedRounds) > 0 {
+			entry["constructed_record"] = fmt.Sprintf("%d-%d-%d", pd.constructedRecord[0], pd.constructedRecord[1], pd.constructedRecord[2])
+			entry["constructed_points"] = pd.constructedPoints
 		}
 		if stats, ok := playerStats[pid]; ok && stats.count > 0 {
 			entry["rank_best"] = stats.rankBest + 1
@@ -762,19 +781,20 @@ func runSimulation(
 		}
 
 		// Simulate matches
+		isLimited := limitedRounds[roundIdx]
 		for _, pr := range pairings {
 			if pr.p2 == nil {
-				st.playerData[pr.p1].recordMatch([3]int{2, 0, 0}, false)
+				st.playerData[pr.p1].recordMatch([3]int{2, 0, 0}, false, isLimited)
 				continue
 			}
 			p1, p2 := pr.p1, *pr.p2
 			if intentionalDraws[[2]string{p1, p2}] {
-				st.playerData[p1].recordMatch([3]int{0, 0, 3}, false)
-				st.playerData[p2].recordMatch([3]int{0, 0, 3}, false)
+				st.playerData[p1].recordMatch([3]int{0, 0, 3}, false, isLimited)
+				st.playerData[p2].recordMatch([3]int{0, 0, 3}, false, isLimited)
 				continue
 			}
 			prob := 0.5
-			if !limitedRounds[roundIdx] {
+			if !isLimited {
 				a1 := archetype(players[p1].Deck)
 				a2 := archetype(players[p2].Deck)
 				if ap, ok := archProbs[a1]; ok {
@@ -791,8 +811,8 @@ func runSimulation(
 					games[1]++
 				}
 			}
-			st.playerData[p1].recordMatch([3]int{games[0], games[1], 0}, false)
-			st.playerData[p2].recordMatch([3]int{games[1], games[0], 0}, false)
+			st.playerData[p1].recordMatch([3]int{games[0], games[1], 0}, false, isLimited)
+			st.playerData[p2].recordMatch([3]int{games[1], games[0], 0}, false, isLimited)
 		}
 	}
 

@@ -6,7 +6,7 @@ DOCS="$(dirname -- "${BASH_SOURCE[0]}")/../../docs"
 COMMIT_MESSAGE="${1:-auto update loop}"
 TARGET_BRANCH=main
 
-git commit --allow-empty -m "${COMMIT_MESSAGE}"
+# git commit --allow-empty -m "${COMMIT_MESSAGE}"
 
 while true; do
   python -m mtgparse.process_manifest
@@ -17,5 +17,5 @@ while true; do
     git push -f origin "HEAD:refs/heads/${TARGET_BRANCH}"
   fi
   
-  sleep 5m
+  sleep 15m
 done

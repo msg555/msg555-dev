@@ -110,6 +110,8 @@ class MagicGGTournament(Tournament):
                 for player_name in players
             ),
         )
+        if "mauricio" in best[1]:
+            print(name, best[1])
         return best[1]
 
     def get_single_round_result(self, round_num: int) -> list[MatchResult]:
@@ -129,6 +131,16 @@ class MagicGGTournament(Tournament):
             raise
 
         results: list[MatchResult] = []
+
+        if round_num <= 3:
+            results.append(
+                MatchResult(
+                    p1="mauricio iriarte",
+                    p2=None,
+                    games=(0, 2, 0),
+                )
+            )
+        
         for table in soup.find_all("table"):
             for row in table.find_all("tr"):
                 cols = [col.text for col in row.find_all("td")]
@@ -161,24 +173,23 @@ class MagicGGTournament(Tournament):
                         cols[3],
                     )
                     if m:
+                        print(cols[3])
                         # Player dropped, just drop record
                         continue
-                    else:
-                        m = re.match(
-                            "(.*) won ([0-9])-([0-9])-([0-9])",
-                            cols[3],
-                        )
-                        if not m:
-                            raise ValueError(
-                                f"Couldn't determine result {repr(cols[3])}"
-                            )
 
-                        match_record = (
-                            int(m.group(2)),
-                            int(m.group(3)),
-                            int(m.group(4)),
-                        )
-                        assert match_record[0] > match_record[1]
+                    m = re.match(
+                        "(.*) won ([0-9])-([0-9])-([0-9])",
+                        cols[3],
+                    )
+                    if not m:
+                        raise ValueError(f"Couldn't determine result {repr(cols[3])}")
+
+                    match_record = (
+                        int(m.group(2)),
+                        int(m.group(3)),
+                        int(m.group(4)),
+                    )
+                    assert match_record[0] > match_record[1]
 
                     if edit_ratio(m.group(1), player_1) < edit_ratio(
                         m.group(1), player_2
@@ -239,6 +250,7 @@ class MagicGGTournament(Tournament):
                     f"{self.event_name}-final-standings.html",
                     "get",
                     f"https://magic.gg/news/{self.event_name}-final-standings",
+                    force=True,
                 ),
                 is_final=True,
             )
@@ -247,6 +259,7 @@ class MagicGGTournament(Tournament):
                     f"{self.event_name}-round-{self.rounds}-standings.html",
                     "get",
                     f"https://magic.gg/news/{self.event_name}-round-{self.rounds}-standings",
+                    force=True,
                 )
             )
         except requests.exceptions.HTTPError as err:

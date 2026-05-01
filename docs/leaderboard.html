@@ -345,6 +345,7 @@
     let availProbCols = [];
     let hasSimData = false;
     let showArchCol = false;
+    let hasLimitedRounds = false;
 
     function init(tournament, ranks) {
         const players = tournament.players || {};
@@ -359,6 +360,8 @@
             a.rel = 'noopener noreferrer';
             document.getElementById('page-links').appendChild(a);
         }
+
+        hasLimitedRounds = !!(tournament.limited_rounds && tournament.limited_rounds.length > 0);
 
         rows = Object.entries(ranks).map(([pid, r]) => {
             const player = players[pid];
@@ -550,6 +553,10 @@
         if (showArchCol) hrow.appendChild(mkTh('Archetype', 'archetype'));
         hrow.appendChild(mkTh('Record', 'record', null, 'Match record'));
         hrow.appendChild(mkTh('Pts', 'points', null, 'Match points'));
+        if (hasLimitedRounds) {
+            hrow.appendChild(mkTh('C.Rec', 'constructed_record', null, 'Constructed record'));
+            hrow.appendChild(mkTh('C.Pts', 'constructed_points', null, 'Constructed points'));
+        }
         for (const col of [...EXTRA_TOGGLE_COLS, ...availProbCols]) {
             if (col.key === 'range' && !hasSimData) continue;
             if (!colVisible[col.key]) continue;
@@ -570,6 +577,10 @@
             if (showArchCol) tr.appendChild(mkTd('col-arch',   row.archetype, null, row.deck_url));
             tr.appendChild(mkTd(row.round_pending ? 'col-record pending' : 'col-record', row.round_pending ? `${row.record}*` : row.record));
             tr.appendChild(mkTd('col-points', row.points));
+            if (hasLimitedRounds) {
+                tr.appendChild(mkTd('col-record', row.constructed_record));
+                tr.appendChild(mkTd('col-points', row.constructed_points));
+            }
 
             if (colVisible['omw']) {
                 const v = fmtTb(row.omw);
