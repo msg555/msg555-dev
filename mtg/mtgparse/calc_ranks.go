@@ -455,6 +455,9 @@ func calcRanks(
 				if seen[pid] {
 					log.Fatalf("player %s seen twice in round %d", pid, roundIdx)
 				}
+				for playerData[pid].rounds < roundIdx {
+					playerData[pid].recordMatch([3]int{0, 2, 0}, false, limitedRounds[playerData[pid].rounds])
+				}
 				if playerData[pid].rounds != roundIdx {
 					log.Fatalf("player %s has wrong round count in round %d", pid, roundIdx)
 				}

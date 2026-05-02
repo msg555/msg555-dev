@@ -295,6 +295,12 @@ def calc_ranks(
                     raise ValueError(
                         f"Saw {player_id} already in round index {round_idx}"
                     )
+                while player_data[player_id].rounds < round_idx:
+                    # Assume forfeits
+                    player_data[player_id].record_match(
+                        (0, 2, 0),
+                        limited=player_data[player_id].rounds in st_limited_rounds
+                    )
                 if player_data[player_id].rounds != round_idx:
                     raise ValueError(
                         f"Player {player_id} has unexpected number of rounds in round index {round_idx}"
