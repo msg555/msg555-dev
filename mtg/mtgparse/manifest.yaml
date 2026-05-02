@@ -17,6 +17,33 @@ ptsos:
   required_points:
     8: 12
   active: true
+  override_results:
+    16:
+    - p1: "3977487" # cftsoc
+      p2: "3977510" # Zevin
+      games: [3, 2, 0]
+      complete: true
+    - p1: "3977464" # Matt Nass
+      p2: "4003087" # Matthew Stefans
+      games: [3, 2, 0]
+      complete: true
+    - p1: "4021865" # Nathan Steuer
+      p2: "3977495" # Stafan Schutz
+      games: [3, 0, 0]
+      complete: true
+    - p1: "3977410" # Chris Larsen
+      p2: "3977470" # Maxx Kominowski
+      games: [3, 1, 0]
+      complete: true
+    17:
+    - p1: "3977487" # cftsoc
+      p2: "3977410" # Chris Larsen
+      games: [0, 0, 0]
+      complete: false
+      p2: "4021865" # Nathan Steuer
+    - p1: "3977464" # Matt Nass
+      games: [3, 2, 0]
+      complete: true
 
 ldxp-sea26-8slotrcq:
   type: melee

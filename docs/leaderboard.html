@@ -279,10 +279,12 @@
         }
 
         .tt-row:last-child { border-bottom: none; }
+        .tt-row.tt-pending { opacity: 0.55; font-style: italic; }
         .tt-round { color: #999; font-size: 0.75rem; }
         .tt-result-w { color: #2e7d32; font-weight: 700; }
         .tt-result-l { color: #c62828; font-weight: 700; }
         .tt-result-d { color: #777; font-weight: 700; }
+        .tt-result-pending { color: #999; }
         .tt-games { color: #555; text-align: right; font-variant-numeric: tabular-nums; }
         .tt-opp { overflow: hidden; text-overflow: ellipsis; }
         .tt-arch { color: #888; font-style: italic; }
@@ -543,9 +545,18 @@
             if (!round || round.length === 0) break;
             const isLimited = limitedSet.has(roundIdx);
             for (const rr of round) {
-                if (!rr.complete) continue;
                 const p1 = rr.p1, p2 = rr.p2, g = rr.games;
                 const roundNum = roundIdx + 1;
+                if (!rr.complete) {
+                    if (p2 && playerMatchHistory[p1]) {
+                        const p1Player = players[p1], p2Player = players[p2];
+                        const p2Arch = !isLimited && p2Player?.deck?.archetype && p2Player.deck.archetype !== 'unknown' ? p2Player.deck.archetype : null;
+                        const p1Arch = !isLimited && p1Player?.deck?.archetype && p1Player.deck.archetype !== 'unknown' ? p1Player.deck.archetype : null;
+                        if (playerMatchHistory[p1]) playerMatchHistory[p1].push({ round: roundNum, pending: true, gamesStr: null, opponentName: p2Player ? p2Player.name : p2, archetype: p2Arch, isLimited });
+                        if (playerMatchHistory[p2]) playerMatchHistory[p2].push({ round: roundNum, pending: true, gamesStr: null, opponentName: p1Player ? p1Player.name : p1, archetype: p1Arch, isLimited });
+                    }
+                    continue;
+                }
                 if (!p2) {
                     if (playerMatchHistory[p1]) {
                         const forfeit = g[1] === 2;
@@ -588,15 +599,20 @@
         tooltip.innerHTML = '';
         for (const m of history) {
             const row = document.createElement('div');
-            row.className = 'tt-row';
+            row.className = m.pending ? 'tt-row tt-pending' : 'tt-row';
 
             const rd = document.createElement('span');
             rd.className = 'tt-round';
             rd.textContent = `Rd ${m.round}`;
 
             const res = document.createElement('span');
-            res.className = m.result === 'W' ? 'tt-result-w' : m.result === 'L' ? 'tt-result-l' : 'tt-result-d';
-            res.textContent = m.result;
+            if (m.pending) {
+                res.className = 'tt-result-pending';
+                res.textContent = '?';
+            } else {
+                res.className = m.result === 'W' ? 'tt-result-w' : m.result === 'L' ? 'tt-result-l' : 'tt-result-d';
+                res.textContent = m.result;
+            }
 
             const gs = document.createElement('span');
             gs.className = 'tt-games';

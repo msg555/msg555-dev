@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from mtgparse.anthropic_label_archetypes import label_decks
 from mtgparse.arch_cluster import create_embedding_html
 from mtgparse.calc_ranks import calc_ranks
-from mtgparse.data_model import Tournament
+from mtgparse.data_model import Tournament, MatchResult
 from mtgparse.json_tournament import JsonTournament
 from mtgparse.magic_gg_tournament_parse import MagicGGTournament
 from mtgparse.melee_tournament_parse import MeleeTournament
@@ -31,6 +31,13 @@ class AutoLabel(BaseModel):
     format_markdown: str
 
 
+class TournamentMatchResult(BaseModel):
+    p1: str
+    p2: Optional[str]
+    games: list[int]
+    complete: bool
+
+
 class TournamentMetadata(BaseModel):
     title: str
     format: str
@@ -41,6 +48,7 @@ class TournamentMetadata(BaseModel):
     sim_rounds: int = 50000
     start_date: Optional[datetime] = None
     active: bool = False
+    override_results: dict[int, list[TournamentMatchResult]] = {}
 
     @abc.abstractmethod
     def get_url(self) -> str:
@@ -201,6 +209,16 @@ def main() -> int:
         if not any(round_results for round_results in json_tour.get_round_results()):
             LOGGER.info("No data for %s yet", tournament_id)
             continue
+
+        for round_idx, round_results in tournament_meta.override_results.items():
+            json_tour.model.round_results[round_idx] = [
+                MatchResult(
+                    p1=res.p1,
+                    p2=res.p2,
+                    games=tuple(res.games),
+                    complete=res.complete,
+                ) for res in round_results
+            ]
 
         if tournament_meta.auto_label and tournament_meta.auto_label.enabled:
             label_decks(
