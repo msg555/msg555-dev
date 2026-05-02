@@ -383,6 +383,7 @@
     let showArchCol = false;
     let hasLimitedRounds = false;
     let playerMatchHistory = {};
+    let rowOrder = {};
 
     function init(tournament, ranks) {
         const players = tournament.players || {};
@@ -681,11 +682,11 @@
         visible.sort((a, b) => {
             let av = sortKey === 'range' ? a.rank_best : a[sortKey];
             let bv = sortKey === 'range' ? b.rank_best : b[sortKey];
-            if (av == null && bv == null) return 0;
+            if (av == null && bv == null) return a.rank - b.rank;
             if (av == null) return 1;
             if (bv == null) return -1;
-            if (typeof av === 'string') return sortDir * av.localeCompare(bv);
-            return sortDir * (av - bv);
+            if (typeof av === 'string') return sortDir * av.localeCompare(bv) || a.rank - b.rank;
+            return sortDir * (av - bv) || a.rank - b.rank;
         });
 
         const table = document.createElement('table');
