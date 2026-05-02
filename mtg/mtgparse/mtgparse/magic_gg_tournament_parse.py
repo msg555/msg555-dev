@@ -110,7 +110,7 @@ class MagicGGTournament(Tournament):
                 for player_name in players
             ),
         )
-        if "mauricio" in best[1]:
+        if best[1] == "jeff lin":
             print(name, best[1])
         return best[1]
 
@@ -149,14 +149,14 @@ class MagicGGTournament(Tournament):
                 if cols[1] != "vs.":
                     continue
 
-                player_1 = cols[0]
-                player_2 = cols[2]
+                player_1 = self._normalize_name(cols[0])
+                player_2 = self._normalize_name(cols[2])
                 match_record = (0, 0, 0)
 
                 if cols[3].endswith(" bye"):
                     results.append(
                         MatchResult(
-                            p1=self._normalize_name(player_1),
+                            p1=player_1,
                             p2=None,
                             games=(0, 0, 0),
                         )
@@ -191,9 +191,12 @@ class MagicGGTournament(Tournament):
                     )
                     assert match_record[0] > match_record[1]
 
-                    if edit_ratio(m.group(1), player_1) < edit_ratio(
-                        m.group(1), player_2
-                    ):
+                    norm_winner = self._normalize_name(m.group(1))
+                    if norm_winner not in (player_1, player_2):
+                        print(m.group(1), norm_winner, player_1, player_2)
+                        raise ValueError("unexpected winner")
+
+                    if norm_winner != player_1:
                         player_1, player_2 = player_2, player_1
 
                     if match_record[0] < match_record[1]:
@@ -206,8 +209,8 @@ class MagicGGTournament(Tournament):
 
                 results.append(
                     MatchResult(
-                        p1=self._normalize_name(player_1),
-                        p2=self._normalize_name(player_2),
+                        p1=player_1,
+                        p2=player_2,
                         games=match_record,
                     )
                 )
