@@ -224,6 +224,7 @@ def main() -> int:
                 top_cut_rounds=tournament_meta.top_cut_rounds,
                 required_points=tournament_meta.required_points,
                 sim_rounds=tournament_meta.sim_rounds,
+                limited_rounds=tournament_meta.limited_rounds,
             )
         else:
             result = subprocess.run(

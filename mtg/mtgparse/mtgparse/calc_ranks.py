@@ -306,9 +306,8 @@ def calc_ranks(
                 # Forfeited
                 if games[1] == 2:
                     player_data[p1].record_match((0, 2, 0), limited=is_limited)
-                continue
-            if p2 is None:  # Bye
-                player_data[p1].record_match((2, 0, 0), limited=is_limited)
+                else:
+                    player_data[p1].record_match((2, 0, 0), limited=is_limited)
                 continue
 
             if round_idx < top_cut_round_idx:
@@ -418,7 +417,7 @@ def calc_ranks(
         # should be a relatively accurate assumption.
 
         intentional_draws = set()
-        if not partial and round_idx + 1 == top_cut_round_idx:
+        if False and not partial and round_idx + 1 == top_cut_round_idx:
             cut_off_rank = 2**top_cut_rounds
 
             orig_breakers = {
@@ -519,6 +518,8 @@ def calc_ranks(
 
             top_players = sorted(players, key=tiebreakers)
             for rank, player_id in enumerate(top_players):
+                if player_id == "nathan steuer":
+                    print("Rank/points", rank, player_data[player_id].points)
                 player_stats[player_id].record_rank(rank, player_data[player_id].points)
 
         player_data = copy.deepcopy(init_player_data)
@@ -589,7 +590,8 @@ def main() -> int:
         tour,
         round_limit=args.rounds,
         top_cut_rounds=args.top_cut,
-        required_points={9: 18},
+        # required_points={9: 18},
+        required_points={8: 12},
         sim_rounds=args.sim_rounds,
     )
 

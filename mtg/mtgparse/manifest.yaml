@@ -10,7 +10,6 @@ rccincinnati2026:
 ptsos:
   type: magic_gg
   title: Pro Tour Secrets of Strixhaven
-  sim_rounds: 100
   format: standard
   top_cut_rounds: 3
   limited_rounds: [0, 1, 2, 8, 9, 10]
