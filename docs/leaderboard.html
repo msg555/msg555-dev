@@ -251,6 +251,41 @@
         .lb-table thead th:last-child  { border-top-right-radius: 10px; }
         .lb-table tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
         .lb-table tbody tr:last-child td:last-child  { border-bottom-right-radius: 10px; }
+
+        /* Match history tooltip */
+        #match-tooltip {
+            position: fixed;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            padding: 6px 10px;
+            font-size: 0.78rem;
+            pointer-events: none;
+            max-height: 70vh;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .tt-row {
+            display: grid;
+            grid-template-columns: 3em 1.2em 2.8em 1fr;
+            gap: 0 6px;
+            padding: 2px 0;
+            white-space: nowrap;
+            align-items: baseline;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .tt-row:last-child { border-bottom: none; }
+        .tt-round { color: #999; font-size: 0.75rem; }
+        .tt-result-w { color: #2e7d32; font-weight: 700; }
+        .tt-result-l { color: #c62828; font-weight: 700; }
+        .tt-result-d { color: #777; font-weight: 700; }
+        .tt-games { color: #555; text-align: right; font-variant-numeric: tabular-nums; }
+        .tt-opp { overflow: hidden; text-overflow: ellipsis; }
+        .tt-arch { color: #888; font-style: italic; }
     </style>
 </head>
 <body>
@@ -281,6 +316,7 @@
     <footer style="margin-top: 1.5em; font-size: 0.78rem; color: #888;">
       Predicted probabilities and rank range come from Monte Carlo simulation results. They do not represent true probabilities or the real theoretical rank range.
     </footer>
+    <div id="match-tooltip"></div>
 
     <script>
 
@@ -346,6 +382,7 @@
     let hasSimData = false;
     let showArchCol = false;
     let hasLimitedRounds = false;
+    let playerMatchHistory = {};
 
     function init(tournament, ranks) {
         const players = tournament.players || {};
@@ -362,6 +399,7 @@
         }
 
         hasLimitedRounds = !!(tournament.limited_rounds && tournament.limited_rounds.length > 0);
+        buildMatchHistory(tournament);
 
         rows = Object.entries(ranks).map(([pid, r]) => {
             const player = players[pid];
@@ -492,6 +530,115 @@
         renderTable();
     }
 
+    function buildMatchHistory(tournament) {
+        const players = tournament.players || {};
+        const limitedSet = new Set(tournament.limited_rounds || []);
+        playerMatchHistory = {};
+        for (const pid of Object.keys(players)) {
+            playerMatchHistory[pid] = [];
+        }
+        for (let roundIdx = 0; roundIdx < (tournament.round_results || []).length; roundIdx++) {
+            const round = tournament.round_results[roundIdx];
+            if (!round || round.length === 0) break;
+            const isLimited = limitedSet.has(roundIdx);
+            for (const rr of round) {
+                if (!rr.complete) continue;
+                const p1 = rr.p1, p2 = rr.p2, g = rr.games;
+                const roundNum = roundIdx + 1;
+                if (!p2) {
+                    if (playerMatchHistory[p1]) {
+                        const forfeit = g[1] === 2;
+                        playerMatchHistory[p1].push({
+                            round: roundNum,
+                            result: forfeit ? 'L' : 'W',
+                            gamesStr: null,
+                            opponentName: null,
+                            forfeit,
+                            archetype: null,
+                            isLimited,
+                        });
+                    }
+                } else {
+                    let r1, r2;
+                    if (g[0] > g[1])      { r1 = 'W'; r2 = 'L'; }
+                    else if (g[1] > g[0]) { r1 = 'L'; r2 = 'W'; }
+                    else                  { r1 = 'D'; r2 = 'D'; }
+                    const p1Player = players[p1], p2Player = players[p2];
+                    const p1Arch = !isLimited && p1Player?.deck?.archetype && p1Player.deck.archetype !== 'unknown' ? p1Player.deck.archetype : null;
+                    const p2Arch = !isLimited && p2Player?.deck?.archetype && p2Player.deck.archetype !== 'unknown' ? p2Player.deck.archetype : null;
+                    if (playerMatchHistory[p1]) {
+                        playerMatchHistory[p1].push({ round: roundNum, result: r1, gamesStr: `${g[0]}-${g[1]}`, opponentName: p2Player ? p2Player.name : p2, archetype: p2Arch, isLimited });
+                    }
+                    if (playerMatchHistory[p2]) {
+                        playerMatchHistory[p2].push({ round: roundNum, result: r2, gamesStr: `${g[1]}-${g[0]}`, opponentName: p1Player ? p1Player.name : p1, archetype: p1Arch, isLimited });
+                    }
+                }
+            }
+        }
+    }
+
+    function showMatchTooltip(e, pid, constructedOnly) {
+        let history = playerMatchHistory[pid];
+        if (!history || history.length === 0) return;
+        if (constructedOnly) history = history.filter(m => !m.isLimited);
+        if (history.length === 0) return;
+
+        const tooltip = document.getElementById('match-tooltip');
+        tooltip.innerHTML = '';
+        for (const m of history) {
+            const row = document.createElement('div');
+            row.className = 'tt-row';
+
+            const rd = document.createElement('span');
+            rd.className = 'tt-round';
+            rd.textContent = `Rd ${m.round}`;
+
+            const res = document.createElement('span');
+            res.className = m.result === 'W' ? 'tt-result-w' : m.result === 'L' ? 'tt-result-l' : 'tt-result-d';
+            res.textContent = m.result;
+
+            const gs = document.createElement('span');
+            gs.className = 'tt-games';
+            gs.textContent = m.gamesStr ?? '—';
+
+            const opp = document.createElement('span');
+            opp.className = 'tt-opp';
+            if (m.opponentName === null) {
+                opp.textContent = m.forfeit ? 'Forfeit' : 'Bye';
+                opp.style.cssText = 'color:#999;font-style:italic';
+            } else {
+                opp.textContent = m.opponentName;
+                if (m.archetype) {
+                    const arch = document.createElement('span');
+                    arch.className = 'tt-arch';
+                    arch.textContent = ` (${m.archetype})`;
+                    opp.appendChild(arch);
+                }
+            }
+
+            row.append(rd, res, gs, opp);
+            tooltip.appendChild(row);
+        }
+
+        tooltip.style.display = 'block';
+        const cr = e.currentTarget.getBoundingClientRect();
+        const tr = tooltip.getBoundingClientRect();
+        let left = cr.right + 8, top = cr.top;
+        if (left + tr.width > window.innerWidth - 8) left = cr.left - tr.width - 8;
+        if (top + tr.height > window.innerHeight - 8) top = window.innerHeight - tr.height - 8;
+        tooltip.style.left = Math.max(8, left) + 'px';
+        tooltip.style.top  = Math.max(8, top)  + 'px';
+    }
+
+    function hideMatchTooltip() {
+        document.getElementById('match-tooltip').style.display = 'none';
+    }
+
+    function attachTooltip(td, pid, constructedOnly) {
+        td.addEventListener('mouseenter', e => showMatchTooltip(e, pid, constructedOnly));
+        td.addEventListener('mouseleave', hideMatchTooltip);
+    }
+
     function mkTh(label, key, cls, tooltip) {
         const th = document.createElement('th');
         th.textContent = label;
@@ -575,10 +722,10 @@
             tr.appendChild(mkTd('col-rank',   row.rank));
             tr.appendChild(mkTd('col-player', row.name, null, row.player_url));
             if (showArchCol) tr.appendChild(mkTd('col-arch',   row.archetype, null, row.deck_url));
-            tr.appendChild(mkTd(row.round_pending ? 'col-record pending' : 'col-record', row.round_pending ? `${row.record}*` : row.record));
+            { const td = mkTd(row.round_pending ? 'col-record pending' : 'col-record', row.round_pending ? `${row.record}*` : row.record); attachTooltip(td, row.pid, false); tr.appendChild(td); }
             tr.appendChild(mkTd('col-points', row.points));
             if (hasLimitedRounds) {
-                tr.appendChild(mkTd('col-record', row.constructed_record));
+                { const td = mkTd('col-record', row.constructed_record); attachTooltip(td, row.pid, true); tr.appendChild(td); }
                 tr.appendChild(mkTd('col-points', row.constructed_points));
             }
 
