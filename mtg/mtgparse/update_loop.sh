@@ -17,5 +17,5 @@ while true; do
     git push -f origin "HEAD:refs/heads/${TARGET_BRANCH}"
   fi
   
-  sleep 15m
+  sleep 5m
 done

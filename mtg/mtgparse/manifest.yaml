@@ -16,7 +16,7 @@ ptsos:
   limited_rounds: [0, 1, 2, 8, 9, 10]
   required_points:
     8: 12
-  active: true
+  active: false
   override_results:
     16:
     - p1: "3977487" # cftsoc
@@ -36,12 +36,17 @@ ptsos:
       games: [3, 1, 0]
       complete: true
     17:
-    - p1: "3977487" # cftsoc
+    - p1: "3977410" # Chris Larsen
+      p2: "3977487" # cftsoc
+      games: [3, 1, 0]
+      complete: true
+    - p1: "4021865" # Nathan Steuer
+      p2: "3977464" # Matt Nass
+      games: [3, 2, 0]
+      complete: true
+    18:
+    - p1: "4021865" # Nathan Steuer
       p2: "3977410" # Chris Larsen
-      games: [0, 0, 0]
-      complete: false
-      p2: "4021865" # Nathan Steuer
-    - p1: "3977464" # Matt Nass
       games: [3, 2, 0]
       complete: true
 
