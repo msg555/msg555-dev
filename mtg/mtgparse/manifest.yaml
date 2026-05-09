@@ -1,7 +1,17 @@
+
 rccincinnati2026:
   type: melee
   melee_id: 370745
   title: RC Cincinnati 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points:
+    9: 18
+
+spotlightsos:
+  type: melee
+  melee_id: 424273
+  title: "Spotlight Series: Secrets"
   format: standard
   top_cut_rounds: 3
   required_points:
