@@ -344,13 +344,20 @@
         const archPlayers = {}; // arch -> Set<playerId>
         const limitedRounds = new Set(data.limited_rounds || []);
 
+        for (const [playerId, playerData] of Object.entries(players)) {
+            const arch = playerData.deck.archetype || 'Unknown';
+            if (!archPlayers[arch]) archPlayers[arch] = new Set();
+            archPlayers[arch].add(playerId);
+        }
+
         for (const [roundIdx, round] of roundResults.entries()) {
             if (limitedRounds.has(roundIdx)) {
                 continue;
             }
             for (const result of round) {
-                const { p1, p2, games } = result;
+                const { p1, p2, games, complete } = result;
                 if (p2 === null || p2 === undefined) continue; // bye
+                if (!complete) continue;
 
                 const player1 = players[p1];
                 const player2 = players[p2];
@@ -358,11 +365,6 @@
 
                 const arch1 = player1.deck.archetype || 'Unknown';
                 const arch2 = player2.deck.archetype || 'Unknown';
-
-                if (!archPlayers[arch1]) archPlayers[arch1] = new Set();
-                if (!archPlayers[arch2]) archPlayers[arch2] = new Set();
-                archPlayers[arch1].add(p1);
-                archPlayers[arch2].add(p2);
 
                 // p1 is always match winner per data model; equal games = draw
                 let matchRes, revRes;
