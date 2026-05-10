@@ -247,7 +247,7 @@ class MeleeTournament(Tournament):
 
             comps = match_result["Competitors"]
             if len(comps) == 1:
-                games = (0, 0, 0) # Draw
+                games = (0, 0, 0)  # Draw
                 if match_result.get("LossReasonDescription") == "Forfeited":
                     games = (0, 2, 0)
                 match_results.append(

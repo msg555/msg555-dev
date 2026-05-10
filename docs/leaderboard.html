@@ -174,6 +174,7 @@
             flex: 1;
             min-height: 0;
             max-width: calc(100vw - 48px);
+            overscroll-behavior-x: contain;
         }
 
         .lb-table {
@@ -251,6 +252,14 @@
         .lb-table thead th:last-child  { border-top-right-radius: 10px; }
         .lb-table tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
         .lb-table tbody tr:last-child td:last-child  { border-bottom-right-radius: 10px; }
+
+        @media (max-width: 640px) {
+            body { padding: 12px; }
+            #table-container { max-width: calc(100vw - 24px); }
+            input[type="text"] { width: 160px; }
+            .title-row { flex-wrap: wrap; margin-bottom: 12px; }
+            h1 { font-size: 1.1rem; }
+        }
 
         /* Match history tooltip */
         #match-tooltip {
@@ -437,18 +446,27 @@
         const top8Degenerate = top8Col && rows.every(r => r.top_8 == null || r.top_8 === 0 || r.top_8 === 1);
 
         // Initialize column visibility
-        for (const c of EXTRA_TOGGLE_COLS) colVisible[c.key] = c.defaultOn;
+        const isMobile = window.innerWidth < 640;
+
+        for (const c of EXTRA_TOGGLE_COLS) colVisible[c.key] = !isMobile && c.defaultOn;
+        let firstProbCol = null;
         for (const c of availProbCols) {
             if (top8Degenerate) {
-                colVisible[c.key] = (c.key === 'top_1' || c.key === 'top_2' || c.key === 'top_4');
+                const show = c.key === 'top_1' || c.key === 'top_2' || c.key === 'top_4';
+                if (show && firstProbCol === null) firstProbCol = c.key;
+                colVisible[c.key] = !isMobile && show;
             } else {
-                colVisible[c.key] = c.defaultOn;
+                const degenerate = rows.every(r => r[c.key] == null || r[c.key] === 0 || r[c.key] === 1);
+                const show = c.defaultOn && !degenerate;
+                if (show && firstProbCol === null) firstProbCol = c.key;
+                colVisible[c.key] = !isMobile && show;
             }
         }
+        if (isMobile && firstProbCol) colVisible[firstProbCol] = true;
 
         if (!hasSimData) {
           colVisible['gw'] = true;
-          colVisible['ogw'] = true;
+          colVisible['ogw'] = !isMobile;
         }
 
         buildToggles();
@@ -590,6 +608,10 @@
     }
 
     function showMatchTooltip(e, pid, constructedOnly) {
+        showMatchTooltipForEl(e.currentTarget, pid, constructedOnly);
+    }
+
+    function showMatchTooltipForEl(el, pid, constructedOnly) {
         let history = playerMatchHistory[pid];
         if (!history || history.length === 0) return;
         if (constructedOnly) history = history.filter(m => !m.isLimited);
@@ -638,7 +660,7 @@
         }
 
         tooltip.style.display = 'block';
-        const cr = e.currentTarget.getBoundingClientRect();
+        const cr = el.getBoundingClientRect();
         const tr = tooltip.getBoundingClientRect();
         let left = cr.right + 8, top = cr.top;
         if (left + tr.width > window.innerWidth - 8) left = cr.left - tr.width - 8;
@@ -654,7 +676,18 @@
     function attachTooltip(td, pid, constructedOnly) {
         td.addEventListener('mouseenter', e => showMatchTooltip(e, pid, constructedOnly));
         td.addEventListener('mouseleave', hideMatchTooltip);
+        td.addEventListener('touchstart', e => {
+            e.stopPropagation();
+            const ttip = document.getElementById('match-tooltip');
+            if (ttip.style.display === 'block') {
+                hideMatchTooltip();
+            } else {
+                showMatchTooltipForEl(td, pid, constructedOnly);
+            }
+        }, { passive: true });
     }
+
+    document.addEventListener('touchstart', hideMatchTooltip);
 
     function mkTh(label, key, cls, tooltip) {
         const th = document.createElement('th');

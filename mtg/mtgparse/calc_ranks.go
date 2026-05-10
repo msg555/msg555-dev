@@ -663,7 +663,7 @@ func runSimulation(
 				sort.SliceStable(rem, func(a, b int) bool {
 					pa, pb := st.playerData[rem[a]].points, st.playerData[rem[b]].points
 					if pa != pb {
-						return pa < pb
+						return pa > pb
 					}
 					return keys[rem[a]] < keys[rem[b]]
 				})

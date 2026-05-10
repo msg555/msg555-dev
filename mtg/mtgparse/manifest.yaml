@@ -7,6 +7,7 @@ rccincinnati2026:
   top_cut_rounds: 3
   required_points:
     9: 18
+  active: true
 
 spotlightsos:
   type: melee
@@ -16,6 +17,7 @@ spotlightsos:
   top_cut_rounds: 3
   required_points:
     9: 18
+  active: true
 
 ptsos:
   type: melee
@@ -26,7 +28,6 @@ ptsos:
   limited_rounds: [0, 1, 2, 8, 9, 10]
   required_points:
     8: 12
-  active: false
   override_results:
     16:
     - p1: "3977487" # cftsoc

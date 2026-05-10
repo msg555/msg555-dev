@@ -299,7 +299,7 @@ def calc_ranks(
                     # Assume forfeits
                     player_data[player_id].record_match(
                         (0, 2, 0),
-                        limited=player_data[player_id].rounds in st_limited_rounds
+                        limited=player_data[player_id].rounds in st_limited_rounds,
                     )
                 if player_data[player_id].rounds != round_idx:
                     raise ValueError(
@@ -368,7 +368,8 @@ def calc_ranks(
                     key=lambda player_id: (
                         player_data[player_id].points,
                         player_sort_key[player_id],
-                    )
+                    ),
+                    reverse=True,
                 )
             else:
                 # Do power pairing on sorted rankings
@@ -423,7 +424,7 @@ def calc_ranks(
         # should be a relatively accurate assumption.
 
         intentional_draws = set()
-        if False and not partial and round_idx + 1 == top_cut_round_idx:
+        if not partial and round_idx + 1 == top_cut_round_idx:
             cut_off_rank = 2**top_cut_rounds
 
             orig_breakers = {
@@ -596,8 +597,7 @@ def main() -> int:
         tour,
         round_limit=args.rounds,
         top_cut_rounds=args.top_cut,
-        # required_points={9: 18},
-        required_points={8: 12},
+        required_points={9: 18},
         sim_rounds=args.sim_rounds,
     )
 

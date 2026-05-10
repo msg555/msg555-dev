@@ -140,7 +140,7 @@ class MagicGGTournament(Tournament):
                     games=(0, 2, 0),
                 )
             )
-        
+
         for table in soup.find_all("table"):
             for row in table.find_all("tr"):
                 cols = [col.text for col in row.find_all("td")]
@@ -296,7 +296,7 @@ class MagicGGTournament(Tournament):
         return result
 
     def get_round_results(self) -> list[list[MatchResult]]:
-        result = []
+        result: list[list[MatchResult]] = []
         for round_num in range(self.rounds):
             round_result = self.get_single_round_result(round_num + 1)
             if not round_result:

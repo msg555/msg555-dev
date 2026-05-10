@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, TypeAdapter
 from mtgparse.anthropic_label_archetypes import label_decks
 from mtgparse.arch_cluster import create_embedding_html
 from mtgparse.calc_ranks import calc_ranks
-from mtgparse.data_model import Tournament, MatchResult
+from mtgparse.data_model import MatchResult, Tournament
 from mtgparse.json_tournament import JsonTournament
 from mtgparse.magic_gg_tournament_parse import MagicGGTournament
 from mtgparse.melee_tournament_parse import MeleeTournament
@@ -215,9 +215,10 @@ def main() -> int:
                 MatchResult(
                     p1=res.p1,
                     p2=res.p2,
-                    games=tuple(res.games),
+                    games=tuple(res.games),  # type: ignore
                     complete=res.complete,
-                ) for res in round_results
+                )
+                for res in round_results
             ]
 
         if tournament_meta.auto_label and tournament_meta.auto_label.enabled:

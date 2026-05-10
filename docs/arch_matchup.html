@@ -171,6 +171,7 @@
             flex: 1;
             min-height: 0;
             max-width: calc(100vw - 48px);
+            overscroll-behavior-x: contain;
         }
 
         .matchup-table {
@@ -270,6 +271,18 @@
         .matchup-table thead th:last-child { border-top-right-radius: 10px; }
         .matchup-table tbody tr:last-child td:first-child { border-bottom-left-radius: 10px; }
         .matchup-table tbody tr:last-child td:last-child { border-bottom-right-radius: 10px; }
+
+        @media (max-width: 640px) {
+            body { padding: 12px; }
+            #table-container { max-width: calc(100vw - 24px); }
+            .matchup-table th, .matchup-table td { padding: 4px 5px; }
+            .matchup-table thead th.col-arch { height: 72px; font-size: 0.62rem; }
+            .matchup-table td.row-header { min-width: 90px; font-size: 0.72rem; }
+            .win-rate { font-size: 0.72rem; }
+            .record { font-size: 0.60rem; }
+            .title-row { flex-wrap: wrap; margin-bottom: 12px; }
+            h1 { font-size: 1.1rem; }
+        }
     </style>
 </head>
 <body>
