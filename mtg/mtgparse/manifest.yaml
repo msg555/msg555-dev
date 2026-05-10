@@ -17,7 +17,13 @@ spotlightsos:
   top_cut_rounds: 3
   required_points:
     9: 18
-  active: true
+  active: false
+  override_results:
+    17:
+    - p1: "4039203" # Koen de Vos
+      p2: "4053471" # StannersPOTUS
+      games: [2, 0, 0]
+      complete: true
 
 ptsos:
   type: melee
