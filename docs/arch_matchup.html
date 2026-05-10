@@ -266,6 +266,39 @@
             white-space: nowrap;
         }
 
+        #players-tooltip {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            padding: 6px 10px;
+            font-size: 0.78rem;
+            pointer-events: none;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .pt-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0 14px;
+            padding: 2px 0;
+            white-space: nowrap;
+            align-items: baseline;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .pt-row:last-child { border-bottom: none; }
+        .pt-name { color: #222; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+        .pt-rec { color: #555; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+        .matchup-table td.row-header a { color: inherit; text-decoration: none; }
+        .matchup-table td.row-header a:hover { text-decoration: underline; }
+        .matchup-table td.players-cell.has-tt { cursor: help; }
+
         /* Round corners on table */
         .matchup-table thead th:first-child { border-top-left-radius: 10px; }
         .matchup-table thead th:last-child { border-top-right-radius: 10px; }
@@ -294,6 +327,7 @@
 
     <div id="status-msg"></div>
     <div id="tooltip"></div>
+    <div id="players-tooltip"></div>
     <div id="error-msg" style="display:none"></div>
     <div id="table-area" style="display:none">
         <div id="table-container"></div>
@@ -472,6 +506,85 @@ function formatRecord(rec) {
         });
     }
 
+    function computePlayerRecords(data) {
+        const records = {};
+        for (const pid of Object.keys(data.players || {})) {
+            records[pid] = { wins: 0, losses: 0, draws: 0, points: 0 };
+        }
+        for (const round of (data.round_results || [])) {
+            for (const result of round) {
+                if (!result.complete) continue;
+                const { p1, p2, games } = result;
+                if (!p2) {
+                    if (records[p1]) {
+                        if (games[1] === 2) records[p1].losses++;
+                        else { records[p1].wins++; records[p1].points += 3; }
+                    }
+                } else if (games[0] > games[1]) {
+                    if (records[p1]) { records[p1].wins++; records[p1].points += 3; }
+                    if (records[p2]) records[p2].losses++;
+                } else if (games[1] > games[0]) {
+                    if (records[p1]) records[p1].losses++;
+                    if (records[p2]) { records[p2].wins++; records[p2].points += 3; }
+                } else {
+                    if (records[p1]) { records[p1].draws++; records[p1].points += 1; }
+                    if (records[p2]) { records[p2].draws++; records[p2].points += 1; }
+                }
+            }
+        }
+        return records;
+    }
+
+    function topPidsForArch(pidSet, records) {
+        return [...pidSet].sort((a, b) => {
+            const ra = records[a], rb = records[b];
+            if (rb.points !== ra.points) return rb.points - ra.points;
+            return rb.wins - ra.wins;
+        });
+    }
+
+    const playersTooltip = document.getElementById('players-tooltip');
+
+    function showPlayersTooltip(el, players) {
+        playersTooltip.innerHTML = '';
+        for (const p of players) {
+            const row = document.createElement('div');
+            row.className = 'pt-row';
+            const nm = document.createElement('span');
+            nm.className = 'pt-name';
+            nm.textContent = p.name;
+            const rc = document.createElement('span');
+            rc.className = 'pt-rec';
+            rc.textContent = `${p.wins}-${p.losses}-${p.draws}`;
+            row.append(nm, rc);
+            playersTooltip.appendChild(row);
+        }
+        playersTooltip.style.display = 'block';
+        const cr = el.getBoundingClientRect();
+        const tr = playersTooltip.getBoundingClientRect();
+        let left = cr.right + 8, top = cr.top;
+        if (left + tr.width > window.innerWidth - 8) left = cr.left - tr.width - 8;
+        if (top + tr.height > window.innerHeight - 8) top = window.innerHeight - tr.height - 8;
+        playersTooltip.style.left = Math.max(8, left) + 'px';
+        playersTooltip.style.top  = Math.max(8, top)  + 'px';
+    }
+
+    function hidePlayersTooltip() {
+        playersTooltip.style.display = 'none';
+    }
+
+    function attachPlayersTooltip(el, players) {
+        el.addEventListener('mouseenter', () => showPlayersTooltip(el, players));
+        el.addEventListener('mouseleave', hidePlayersTooltip);
+        el.addEventListener('touchstart', e => {
+            e.stopPropagation();
+            if (playersTooltip.style.display === 'block') hidePlayersTooltip();
+            else showPlayersTooltip(el, players);
+        }, { passive: true });
+    }
+
+    document.addEventListener('touchstart', hidePlayersTooltip);
+
     function esc(str) {
         return String(str)
             .replace(/&/g, '&amp;')
@@ -516,6 +629,7 @@ function formatRecord(rec) {
         catch (err) { showError('Error processing data: ' + err.message); return; }
 
         const { matchup, total, archPlayers, deckArchs } = stats;
+        const records = computePlayerRecords(data);
 
         if (deckArchs.length === 0) {
             showError('No archetype data found in this tournament file.');
@@ -559,16 +673,34 @@ const table = document.createElement('table');
         for (const arch of deckArchs) {
             const tr = document.createElement('tr');
 
-            // Sticky row label
+            const sortedPids = topPidsForArch(archPlayers[arch], records);
+            const topPid = sortedPids[0];
+            const topDeckUrl = topPid && data.players[topPid]?.deck?.url;
+
+            // Sticky row label (link to top player's deck if available)
             const labelTd = document.createElement('td');
             labelTd.className = 'row-header';
-            labelTd.textContent = arch;
+            if (topDeckUrl) {
+                const a = document.createElement('a');
+                a.href = topDeckUrl;
+                a.textContent = arch;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                labelTd.appendChild(a);
+            } else {
+                labelTd.textContent = arch;
+            }
             tr.appendChild(labelTd);
 
-            // Player count
+            // Player count (with top-5 players tooltip)
             const playersTd = document.createElement('td');
-            playersTd.className = 'players-cell';
+            playersTd.className = 'players-cell has-tt';
             playersTd.textContent = archPlayers[arch].size;
+            const top5 = sortedPids.slice(0, 5).map(pid => ({
+                name: data.players[pid]?.name || pid,
+                ...records[pid],
+            }));
+            if (top5.length > 0) attachPlayersTooltip(playersTd, top5);
             tr.appendChild(playersTd);
 
             // Total record
