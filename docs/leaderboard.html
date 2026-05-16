@@ -116,6 +116,35 @@
 
         .col-dropdown-btn:hover { background: #f5f5f5; }
 
+        .fav-only-btn {
+            padding: 7px 12px;
+            border: 1.5px solid #d0d0d0;
+            border-radius: 6px;
+            background: white;
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .fav-only-btn:hover { background: #f5f5f5; }
+        .fav-only-btn.active { background: #fff4d4; border-color: #f5b800; color: #5a4000; }
+        .fav-only-btn .star { margin-right: 4px; color: #888; }
+        .fav-only-btn.active .star { color: #f5b800; }
+
+        .fav-star {
+            cursor: pointer;
+            margin-right: 6px;
+            color: #d0d0d0;
+            user-select: none;
+            display: inline-block;
+            width: 1em;
+        }
+        .fav-star.is-fav { color: #f5b800; }
+        .fav-star:hover { color: #999; }
+        .fav-star.is-fav:hover { color: #e0a500; }
+
         .col-dropdown-panel {
             display: none;
             position: absolute;
@@ -314,6 +343,8 @@
             <input type="text" id="filter-input" placeholder="Player name or archetype…">
         </div>
         <div class="divider"></div>
+        <button class="fav-only-btn" id="fav-only-btn"><span class="star">☆</span>Favorites</button>
+        <div class="divider"></div>
         <div class="col-dropdown" id="toggle-group" style="display:none">
             <button class="col-dropdown-btn" id="col-dropdown-btn">Columns ▾</button>
             <div class="col-dropdown-panel" id="col-toggles"></div>
@@ -395,6 +426,31 @@
     let hasLimitedRounds = false;
     let playerMatchHistory = {};
     let rowOrder = {};
+    let favorites = new Set();
+    let favoritesOnly = false;
+
+    const favStorageKey = `lb-favorites-${tid}`;
+    const favOnlyStorageKey = `lb-favorites-only-${tid}`;
+    function loadFavorites() {
+        try {
+            const raw = localStorage.getItem(favStorageKey);
+            favorites = new Set(raw ? JSON.parse(raw) : []);
+        } catch { favorites = new Set(); }
+        try {
+            favoritesOnly = localStorage.getItem(favOnlyStorageKey) === '1';
+        } catch { favoritesOnly = false; }
+    }
+    function saveFavorites() {
+        try { localStorage.setItem(favStorageKey, JSON.stringify([...favorites])); } catch {}
+    }
+    function saveFavoritesOnly() {
+        try { localStorage.setItem(favOnlyStorageKey, favoritesOnly ? '1' : '0'); } catch {}
+    }
+    function toggleFavorite(pid) {
+        if (favorites.has(pid)) favorites.delete(pid); else favorites.add(pid);
+        saveFavorites();
+        renderTable();
+    }
 
     function init(tournament, ranks) {
         const players = tournament.players || {};
@@ -470,9 +526,23 @@
         }
 
         buildToggles();
+        loadFavorites();
 
-        document.getElementById('filter-input').addEventListener('input', e => {
+        const filterInput = document.getElementById('filter-input');
+        filterText = filterInput.value.toLowerCase();
+        filterInput.addEventListener('input', e => {
             filterText = e.target.value.toLowerCase();
+            renderTable();
+        });
+
+        const favBtn = document.getElementById('fav-only-btn');
+        favBtn.classList.toggle('active', favoritesOnly);
+        favBtn.querySelector('.star').textContent = favoritesOnly ? '★' : '☆';
+        favBtn.addEventListener('click', () => {
+            favoritesOnly = !favoritesOnly;
+            saveFavoritesOnly();
+            favBtn.classList.toggle('active', favoritesOnly);
+            favBtn.querySelector('.star').textContent = favoritesOnly ? '★' : '☆';
             renderTable();
         });
 
@@ -722,6 +792,7 @@
     function renderTable() {
         // Filter
         const visible = rows.filter(row => {
+            if (favoritesOnly && !favorites.has(row.pid)) return false;
             if (!filterText) return true;
             return row.name.toLowerCase().includes(filterText) ||
                    row.archetype.toLowerCase().includes(filterText);
@@ -770,7 +841,26 @@
             const tr = document.createElement('tr');
 
             tr.appendChild(mkTd('col-rank',   row.rank));
-            tr.appendChild(mkTd('col-player', row.name, null, row.player_url));
+            {
+                const td = document.createElement('td');
+                td.className = 'col-player';
+                td.title = row.name;
+                const isFav = favorites.has(row.pid);
+                const star = document.createElement('span');
+                star.className = 'fav-star' + (isFav ? ' is-fav' : '');
+                star.textContent = isFav ? '★' : '☆';
+                star.addEventListener('click', e => { e.stopPropagation(); toggleFavorite(row.pid); });
+                td.appendChild(star);
+                if (row.player_url) {
+                    const a = document.createElement('a');
+                    a.href = row.player_url;
+                    a.textContent = row.name;
+                    td.appendChild(a);
+                } else {
+                    td.appendChild(document.createTextNode(row.name));
+                }
+                tr.appendChild(td);
+            }
             if (showArchCol) tr.appendChild(mkTd('col-arch',   row.archetype, null, row.deck_url));
             { const td = mkTd(row.round_pending ? 'col-record pending' : 'col-record', row.round_pending ? `${row.record}*` : row.record); attachTooltip(td, row.pid, false); tr.appendChild(td); }
             tr.appendChild(mkTd('col-points', row.points));

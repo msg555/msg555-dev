@@ -358,10 +358,8 @@
     lbLink.textContent = 'Leaderboard';
     document.getElementById('page-links').appendChild(lbLink);
 
-    let dataPath = "tournaments/default.json";
-    if (tournamentId && /^[a-zA-Z0-9-]+$/.test(tournamentId)) {
-        dataPath = `tournaments/${tournamentId}.json`;
-    }
+    const safeTid = (tournamentId && /^[a-zA-Z0-9-]+$/.test(tournamentId)) ? tournamentId : 'default';
+    const dataPath = `tournaments/${safeTid}.json`;
 
     fetch(dataPath)
         .then(r => { if (!r.ok) throw new Error('Could not load tournament, check url'); return r.json(); })
@@ -509,12 +507,17 @@ function formatRecord(rec) {
     function computePlayerRecords(data) {
         const records = {};
         for (const pid of Object.keys(data.players || {})) {
-            records[pid] = { wins: 0, losses: 0, draws: 0, points: 0 };
+            records[pid] = { pending: 0, wins: 0, losses: 0, draws: 0, points: 0 };
         }
         for (const round of (data.round_results || [])) {
             for (const result of round) {
-                if (!result.complete) continue;
                 const { p1, p2, games } = result;
+                if (!result.complete) {
+                  records[p1].pending++;
+                  if (p2) records[p2].pending++;
+                  continue;
+                }
+
                 if (!p2) {
                     if (records[p1]) {
                         if (games[1] === 2) records[p1].losses++;
@@ -640,6 +643,44 @@ function formatRecord(rec) {
         document.getElementById('status-msg').textContent =
             `${playerCount} players · ${deckArchs.length} archetypes`;
 
+        // The "Players" column gets a second line in two cases:
+        //   - Active tournament: show how many of each archetype are still
+        //     mathematically alive given the required_points thresholds.
+        //   - Completed tournament: show how many made the cut (i.e. met the
+        //     single largest required_points threshold).
+        const rounds = data.round_results || [];
+        const lastRound = rounds.length ? rounds[rounds.length - 1] : null;
+        const isActive = !lastRound || lastRound.length === 0;
+        const playedRounds = rounds.reduce((n, r) => n + (r.length > 0 ? 1 : 0), 0);
+        const requiredPoints = data.required_points || {};
+        const reqKeys = Object.keys(requiredPoints).map(Number).sort((a, b) => b - a);
+        const cutKey = reqKeys.length ? reqKeys[0] : null;
+        const cutVal = cutKey != null ? requiredPoints[String(cutKey)] : null;
+
+        const showContention = isActive && cutKey != null;
+        const showCut = !isActive && cutKey != null && rounds.length >= cutKey;
+
+        const inContention = (pid) => {
+            const rec = records[pid];
+            if (!rec) return false;
+            const roundsPlayed = rec.wins + rec.losses + rec.draws;
+            if (roundsPlayed + rec.pending < playedRounds) return false;
+            for (const keyStr of Object.keys(requiredPoints)) {
+                const key = +keyStr;
+                const maxPoints = rec.points + 3 * Math.max(0, key - roundsPlayed);
+                if (maxPoints < requiredPoints[keyStr]) return false;
+            }
+            return true;
+        };
+
+        // For completed tournaments, a player made the cut iff their final
+        // points meet the threshold — players who didn't make the cut would
+        // have stopped playing, so their final points can't exceed it.
+        const madeCut = (pid) => {
+            const rec = records[pid];
+            return !!(rec && rec.points >= cutVal);
+        };
+
 const table = document.createElement('table');
         table.className = 'matchup-table';
 
@@ -655,7 +696,14 @@ const table = document.createElement('table');
         };
 
         hrow.appendChild(mkTh('Archetype'));
-        hrow.appendChild(mkTh('Players'));
+        const subLabel = showContention ? 'Remaining' : showCut ? 'Made Cut' : null;
+        if (subLabel) {
+            const th = document.createElement('th');
+            th.innerHTML = `Players<br>(${subLabel})`;
+            hrow.appendChild(th);
+        } else {
+            hrow.appendChild(mkTh('Players'));
+        }
         hrow.appendChild(mkTh('Total'));
 
         for (const arch of deckArchs) {
@@ -695,7 +743,20 @@ const table = document.createElement('table');
             // Player count (with top-5 players tooltip)
             const playersTd = document.createElement('td');
             playersTd.className = 'players-cell has-tt';
-            playersTd.textContent = archPlayers[arch].size;
+            const totalPlayers = archPlayers[arch].size;
+            if (showContention || showCut) {
+                let count = 0;
+                for (const pid of archPlayers[arch]) {
+                    if (showContention ? inContention(pid) : madeCut(pid)) count++;
+                }
+                const pct = Math.round(100 * count / totalPlayers);
+                playersTd.innerHTML = `${totalPlayers}<br>(${count} - ${pct}%)`;
+                playersTd.title = showContention
+                    ? `${totalPlayers} total, ${count} (${pct}%) still mathematically alive`
+                    : `${totalPlayers} total, ${count} (${pct}%) made the cut (${cutVal}+ points after ${cutKey} rounds)`;
+            } else {
+                playersTd.textContent = totalPlayers;
+            }
             const top5 = sortedPids.slice(0, 5).map(pid => ({
                 name: data.players[pid]?.name || pid,
                 ...records[pid],
