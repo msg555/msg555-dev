@@ -232,6 +232,7 @@ def main() -> int:
         json_tour.model.source_url = tournament_meta.get_url()
         json_tour.model.limited_rounds = tournament_meta.limited_rounds
         json_tour.model.top_cut_rounds = tournament_meta.top_cut_rounds
+        json_tour.model.required_points = tournament_meta.required_points
         json_tour.model.start_date = start_date.isoformat()
 
         if not args.no_scrape:

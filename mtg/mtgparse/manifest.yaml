@@ -7,7 +7,6 @@ rccincinnati2026:
   top_cut_rounds: 3
   required_points:
     9: 18
-  active: true
 
 spotlightsos:
   type: melee

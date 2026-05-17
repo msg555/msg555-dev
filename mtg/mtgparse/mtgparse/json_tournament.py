@@ -7,6 +7,7 @@ class TournamentModel(BaseModel):
     title: str = ""
     source_url: str = ""
     limited_rounds: list[int] = []
+    required_points: dict[int, int] = {}
     top_cut_rounds: int = 3
     start_date: str = ""
     players: dict[str, Player]
