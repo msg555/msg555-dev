@@ -1,3 +1,11 @@
+rcottawa2026:
+  type: melee
+  melee_id: 416522
+  title: RC Ottawa 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points:
+    9: 18
 
 rccincinnati2026:
   type: melee
