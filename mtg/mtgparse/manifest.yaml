@@ -1,3 +1,11 @@
+rcsaopaulo2026:
+  type: melee
+  melee_id: 425324
+  title: RC São Paulo
+  format: standard
+  top_cut_rounds: 3
+  required_points: {}
+
 rcottawa2026:
   type: melee
   melee_id: 416522
