@@ -1,7 +1,40 @@
+rcprague2026:
+  type: melee
+  melee_id: 424913
+  title: RC Prague 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points:
+    8: 18
+
+anzssadelaide2026:
+  type: melee
+  melee_id: 379086
+  title: ANZ Super Series Adelaide 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points: {}
+  
+rckualalumpur2026:
+  type: melee
+  melee_id: 427421
+  title: SEA RC Kuala Lumpur 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points: {}
+
+rcmexicocity2026:
+  type: melee
+  melee_id: 411894
+  title: CAMS RC Mexico City 2026
+  format: standard
+  top_cut_rounds: 3
+  required_points: {}
+
 rcsaopaulo2026:
   type: melee
   melee_id: 425324
-  title: RC São Paulo
+  title: RC São Paulo 2026
   format: standard
   top_cut_rounds: 3
   required_points: {}
